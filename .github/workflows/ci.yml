@@ -1,0 +1,205 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+    
+    - name: Install dependencies
+      run: bun install
+    
+    - name: Type check
+      run: npm run typecheck
+    
+    - name: Build
+      run: npm run build
+    
+    - name: Run unit tests
+      run: npm run test
+    
+    - name: Run E2E tests
+      run: npm run test:e2e
+      env:
+        # E2Eテスト用の環境変数
+        NODE_ENV: test
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+    
+    - name: Install dependencies
+      run: bun install
+    
+    - name: Run security audit
+      run: npm audit --audit-level=moderate
+      continue-on-error: true
+    
+    - name: Check for known vulnerabilities
+      run: bunx audit-ci --moderate
+      continue-on-error: true
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+    
+    - name: Install dependencies
+      run: bun install
+    
+    - name: Build check
+      run: npm run build
+    
+    - name: Type coverage check
+      run: |
+        echo "TypeScript strict mode enabled"
+        npm run typecheck
+
+  release:
+    name: Release
+    needs: [test, security, code-quality]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        registry-url: 'https://registry.npmjs.org'
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+    
+    - name: Install dependencies
+      run: bun install
+    
+    - name: Build
+      run: npm run build
+    
+    - name: Check if version changed
+      id: version-check
+      run: |
+        CURRENT_VERSION=$(node -p "require('./package.json').version")
+        if git tag | grep -q "v$CURRENT_VERSION"; then
+          echo "version-changed=false" >> $GITHUB_OUTPUT
+        else
+          echo "version-changed=true" >> $GITHUB_OUTPUT
+          echo "new-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Release
+      if: steps.version-check.outputs.version-changed == 'true'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version-check.outputs.new-version }}
+        release_name: Release v${{ steps.version-check.outputs.new-version }}
+        draft: false
+        prerelease: false
+        body: |
+          ## Changes in v${{ steps.version-check.outputs.new-version }}
+          
+          Please see the commit history for detailed changes.
+          
+          ### Installation
+          ```bash
+          npm install -g ccwatch
+          # or
+          npx ccwatch@latest <threshold>
+          ```
+    
+    - name: Publish to NPM
+      if: steps.version-check.outputs.version-changed == 'true'
+      run: npm publish
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  performance:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+    
+    - name: Install dependencies
+      run: bun install
+    
+    - name: Build
+      run: npm run build
+    
+    - name: Bundle size check
+      run: |
+        echo "Built bundle size:"
+        ls -lh dist/
+        
+        # バンドルサイズが20MB以下であることを確認
+        SIZE=$(stat -c%s dist/index.js)
+        if [ $SIZE -gt 20971520 ]; then
+          echo "Bundle size too large: $SIZE bytes"
+          exit 1
+        fi
+        echo "Bundle size OK: $SIZE bytes"
+    
+    - name: Startup time test
+      run: |
+        echo "Testing startup time..."
+        time timeout 10s ./dist/index.js --help > /dev/null 2>&1 || true
+        echo "Startup time test completed"

@@ -694,8 +694,11 @@ test("DI - モック依存関係での使用量チェック", async () => {
   };
   
   const mockLogger = {
-    log: mock(() => {}),
+    debug: mock(() => {}),
+    info: mock(() => {}),
+    warn: mock(() => {}),
     error: mock(() => {}),
+    log: mock(() => {}),
     logWithTimestamp: mock(() => {})
   };
   
@@ -721,7 +724,7 @@ test("DI - モック依存関係での使用量チェック", async () => {
   
   expect(mockDeps.fetchUsageData).toHaveBeenCalledTimes(1);
   expect(mockDeps.sendNotification).toHaveBeenCalledTimes(1);
-  expect(mockLogger.logWithTimestamp).toHaveBeenCalled();
+  expect(mockLogger.info).toHaveBeenCalled();
 });
 
 // 型安全性のテスト
@@ -739,4 +742,31 @@ test("型安全性 - readonlyプロパティの検証", async () => {
   
   expect(message).toContain("$45.67");
   expect(message).toContain("claude-sonnet-4-20250514");
+});
+
+// 構造化ログのテスト
+test("構造化ログ - StructuredLogger動作確認", async () => {
+  const originalConsole = console.log;
+  let logOutput = "";
+  
+  console.log = (message: string) => { logOutput += message; };
+  
+  // 動的インポートで新しいStructuredLoggerを作成
+  const module = await import("./index.ts");
+  
+  // プライベートクラスなので直接テストできないため、
+  // createDefaultDependenciesを通じてテスト
+  const deps = (module as any).createDefaultDependencies(true);
+  
+  deps.logger.info("Test message", { 
+    component: "test",
+    correlationId: "test-123" 
+  });
+  
+  expect(logOutput).toContain('"level":"INFO"');
+  expect(logOutput).toContain('"message":"Test message"');
+  expect(logOutput).toContain('"component":"test"');
+  expect(logOutput).toContain('"correlationId":"test-123"');
+  
+  console.log = originalConsole;
 });

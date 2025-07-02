@@ -52,19 +52,121 @@ interface Dependencies {
   readonly logger: Logger;
 }
 
+enum LogLevel {
+  DEBUG = 0,
+  INFO = 1,
+  WARN = 2,
+  ERROR = 3
+}
+
+interface LogContext {
+  readonly timestamp?: string;
+  readonly level?: LogLevel;
+  readonly component?: string;
+  readonly correlationId?: string;
+  readonly [key: string]: unknown;
+}
+
 interface Logger {
-  readonly log: (message: string) => void;
-  readonly error: (message: string, error?: unknown) => void;
-  readonly logWithTimestamp: (message: string) => void;
+  readonly debug: (message: string, context?: LogContext) => void;
+  readonly info: (message: string, context?: LogContext) => void;
+  readonly warn: (message: string, context?: LogContext) => void;
+  readonly error: (message: string, context?: LogContext) => void;
+  readonly log: (message: string) => void; // 後方互換性
+  readonly logWithTimestamp: (message: string) => void; // 後方互換性
+}
+
+class StructuredLogger implements Logger {
+  private readonly minLevel: LogLevel;
+  private readonly component: string;
+  
+  constructor(minLevel: LogLevel = LogLevel.INFO, component: string = 'ccwatch') {
+    this.minLevel = minLevel;
+    this.component = component;
+  }
+  
+  private shouldLog(level: LogLevel): boolean {
+    return level >= this.minLevel;
+  }
+  
+  private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
+    const timestamp = context?.timestamp || new Date().toISOString();
+    const levelName = LogLevel[level];
+    const component = context?.component || this.component;
+    const correlationId = context?.correlationId || '';
+    
+    const baseLog = {
+      timestamp,
+      level: levelName,
+      component,
+      message,
+      ...(correlationId && { correlationId }),
+      ...context
+    };
+    
+    // 構造化ログとして出力
+    return JSON.stringify(baseLog);
+  }
+  
+  private write(level: LogLevel, message: string, context?: LogContext): void {
+    if (!this.shouldLog(level)) return;
+    
+    const formatted = this.formatMessage(level, message, context);
+    
+    if (level >= LogLevel.ERROR) {
+      console.error(formatted);
+    } else if (level >= LogLevel.WARN) {
+      console.warn(formatted);
+    } else {
+      console.log(formatted);
+    }
+  }
+  
+  debug(message: string, context?: LogContext): void {
+    this.write(LogLevel.DEBUG, message, context);
+  }
+  
+  info(message: string, context?: LogContext): void {
+    this.write(LogLevel.INFO, message, context);
+  }
+  
+  warn(message: string, context?: LogContext): void {
+    this.write(LogLevel.WARN, message, context);
+  }
+  
+  error(message: string, context?: LogContext): void {
+    this.write(LogLevel.ERROR, message, context);
+  }
+  
+  // 後方互換性のためのメソッド
+  log(message: string): void {
+    this.info(message);
+  }
+  
+  logWithTimestamp(message: string): void {
+    this.info(message, { timestamp: new Date().toISOString() });
+  }
 }
 
 class DefaultLogger implements Logger {
-  log(message: string): void {
-    console.log(message);
+  debug(message: string, context?: LogContext): void {
+    console.log(`[DEBUG] ${message}`);
   }
   
-  error(message: string, error?: unknown): void {
-    console.error(message, error);
+  info(message: string, context?: LogContext): void {
+    console.log(`[INFO] ${message}`);
+  }
+  
+  warn(message: string, context?: LogContext): void {
+    console.warn(`[WARN] ${message}`);
+  }
+  
+  error(message: string, context?: LogContext): void {
+    console.error(`[ERROR] ${message}`);
+  }
+  
+  log(message: string): void {
+    console.log(message);
   }
   
   logWithTimestamp(message: string): void {
@@ -73,8 +175,10 @@ class DefaultLogger implements Logger {
   }
 }
 
-function createDefaultDependencies(): Dependencies {
-  const logger = new DefaultLogger();
+function createDefaultDependencies(useStructuredLogging: boolean = false): Dependencies {
+  const logger = useStructuredLogging 
+    ? new StructuredLogger(LogLevel.INFO, 'ccwatch')
+    : new DefaultLogger();
   
   return {
     fetchUsageData: getCCUsageData,
@@ -374,7 +478,8 @@ async function loadDaemonState(): Promise<DaemonState> {
     const data = readFileSync(stateFile, 'utf8');
     return JSON.parse(data) as DaemonState;
   } catch (error) {
-    logWithTimestamp(`状態ファイル読み込みエラー: ${error}`);
+    const logger = new DefaultLogger();
+    logger.error(`状態ファイル読み込みエラー: ${error}`, { component: 'state-manager' });
     return {};
   }
 }
@@ -385,7 +490,8 @@ async function saveDaemonState(state: DaemonState): Promise<void> {
   try {
     writeFileSync(stateFile, JSON.stringify(state, null, 2));
   } catch (error) {
-    logWithTimestamp(`状態ファイル保存エラー: ${error}`);
+    const logger = new DefaultLogger();
+    logger.error(`状態ファイル保存エラー: ${error}`, { component: 'state-manager' });
   }
 }
 
@@ -424,7 +530,8 @@ async function setupGracefulShutdown(): Promise<void> {
     if (isShuttingDown) return;
     isShuttingDown = true;
     
-    logWithTimestamp("🛑 ccwatch daemon stopping...");
+    const logger = new DefaultLogger();
+    logger.info("ccwatch daemon stopping", { component: 'daemon' });
     
     if (intervalId) {
       clearInterval(intervalId);
@@ -451,14 +558,22 @@ async function checkUsageOnce(config: Config, state: DaemonState, deps?: Depende
     );
     
     if (!currentMonthUsage) {
-      dependencies.logger.logWithTimestamp(`📊 ${currentMonth}の使用データが見つかりません`);
+      dependencies.logger.warn(`${currentMonth}の使用データが見つかりません`, { 
+      currentMonth, 
+      component: 'usage-checker' 
+    });
       return state;
     }
     
     const currentCost = currentMonthUsage.totalCost;
     const exceeded = currentCost > config.threshold;
     
-    dependencies.logger.logWithTimestamp(`📊 ${currentMonth}の現在のコスト: $${currentCost.toFixed(2)} (閾値: $${config.threshold})`);
+    dependencies.logger.info(`現在のコスト: $${currentCost.toFixed(2)} (閾値: $${config.threshold})`, {
+      currentMonth,
+      currentCost,
+      threshold: config.threshold,
+      component: 'cost-monitor'
+    });
     
     const newState = { ...state };
     
@@ -467,28 +582,52 @@ async function checkUsageOnce(config: Config, state: DaemonState, deps?: Depende
       newState.lastExceedanceDate = today;
       
       const excess = currentCost - config.threshold;
-      dependencies.logger.logWithTimestamp(`🚨 閾値超過！ 超過額: $${excess.toFixed(2)}`);
+      dependencies.logger.error(`閾値超過`, {
+        currentMonth,
+        currentCost,
+        threshold: config.threshold,
+        excess,
+        component: 'threshold-checker'
+      });
       
       if (shouldSendNotification(state, exceeded)) {
         if (config.slackWebhookUrl) {
           const message = formatCostMessage(currentMonthUsage, config.threshold);
           await dependencies.sendNotification(message, config.slackWebhookUrl);
-          dependencies.logger.logWithTimestamp("✅ Slack通知を送信しました");
+          dependencies.logger.info("Slack通知を送信しました", {
+            webhookUrl: config.slackWebhookUrl?.substring(0, 30) + '...',
+            component: 'notification'
+          });
           newState.lastNotificationDate = today;
         } else {
-          dependencies.logger.logWithTimestamp("⚠️ CCMONITOR_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
+          dependencies.logger.warn("Slack通知をスキップ: 環境変数未設定", {
+            reason: 'CCMONITOR_SLACK_WEBHOOK_URL not set',
+            component: 'notification'
+          });
         }
       } else {
-        dependencies.logger.logWithTimestamp("📤 本日は既に通知済みのため、Slack通知をスキップします");
+        dependencies.logger.debug("Slack通知をスキップ: 本日既に通知済み", {
+          lastNotificationDate: state.lastNotificationDate,
+          component: 'notification'
+        });
       }
     } else {
       const remaining = config.threshold - currentCost;
-      dependencies.logger.logWithTimestamp(`✅ 現在は閾値内です (残り: $${remaining.toFixed(2)})`);
+      dependencies.logger.info(`現在は閾値内です`, {
+        currentMonth,
+        currentCost,
+        threshold: config.threshold,
+        remaining,
+        component: 'cost-monitor'
+      });
     }
     
     return newState;
   } catch (error) {
-    dependencies.logger.logWithTimestamp(`❌ チェック中にエラーが発生しました: ${error}`);
+    dependencies.logger.error(`チェック中にエラーが発生しました`, {
+      error: error instanceof Error ? error.message : String(error),
+      component: 'usage-checker'
+    });
     return state;
   }
 }
@@ -496,7 +635,11 @@ async function checkUsageOnce(config: Config, state: DaemonState, deps?: Depende
 async function runDaemon(config: Config, deps?: Dependencies): Promise<void> {
   const dependencies = deps || createDefaultDependencies();
   
-  dependencies.logger.logWithTimestamp(`🤖 ccwatch daemon started (閾値: $${config.threshold}, 間隔: ${config.interval}秒)`);
+  dependencies.logger.info(`ccwatch daemon started`, {
+    threshold: config.threshold,
+    interval: config.interval,
+    component: 'daemon'
+  });
   
   await setupGracefulShutdown();
   

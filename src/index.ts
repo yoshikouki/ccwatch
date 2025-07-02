@@ -221,7 +221,6 @@ EXAMPLES:
 
 ENVIRONMENT VARIABLES:
   CCWATCH_SLACK_WEBHOOK_URL      Slack webhook URL for notifications (optional)
-                                 CCMONITOR_SLACK_WEBHOOK_URL (deprecated, use CCWATCH_SLACK_WEBHOOK_URL)
 
 DAEMON MODE FEATURES:
   • Automatic periodic monitoring
@@ -392,7 +391,7 @@ export function parseArgs(): Config {
 
   const config = {
     threshold,
-    slackWebhookUrl: process.env.CCWATCH_SLACK_WEBHOOK_URL || process.env.CCMONITOR_SLACK_WEBHOOK_URL,
+    slackWebhookUrl: process.env.CCWATCH_SLACK_WEBHOOK_URL,
     checkCurrentMonth: true,
     daemon,
     interval,

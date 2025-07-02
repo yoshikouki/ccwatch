@@ -9,15 +9,15 @@
   },
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target node --format esm && chmod +x dist/index.js",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "bun run build",
     "dev": "bun --hot src/index.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "test:all": "vitest run && vitest run --config vitest.e2e.config.ts",
-    "typecheck": "tsc --noEmit"
+    "test": "bun vitest run",
+    "test:watch": "bun vitest",
+    "test:ui": "bun vitest --ui",
+    "test:coverage": "bun vitest run --coverage",
+    "test:e2e": "bun vitest run --config vitest.e2e.config.ts",
+    "test:all": "bun vitest run && bun vitest run --config vitest.e2e.config.ts",
+    "typecheck": "bun tsc --noEmit"
   },
   "keywords": ["claude", "claude-code", "usage", "monitor", "slack", "notification", "cost", "threshold", "daemon"],
   "author": "yoshikouki",

@@ -59,7 +59,7 @@ EXAMPLES:
   nohup ccmonitor 33 --daemon > ccmonitor.log 2>&1 &
 
 ENVIRONMENT VARIABLES:
-  SLACK_WEBHOOK_URL    Slack webhook URL for notifications (optional)
+  CCMONITOR_SLACK_WEBHOOK_URL    Slack webhook URL for notifications (optional)
 
 DAEMON MODE FEATURES:
   • Automatic periodic monitoring
@@ -108,7 +108,7 @@ export function parseArgs(): Config {
 
   return {
     threshold,
-    slackWebhookUrl: process.env.SLACK_WEBHOOK_URL,
+    slackWebhookUrl: process.env.CCMONITOR_SLACK_WEBHOOK_URL,
     checkCurrentMonth: true,
     daemon,
     interval,
@@ -284,7 +284,7 @@ async function checkUsageOnce(config: Config, state: DaemonState): Promise<Daemo
           logWithTimestamp("✅ Slack通知を送信しました");
           newState.lastNotificationDate = today;
         } else {
-          logWithTimestamp("⚠️ SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
+          logWithTimestamp("⚠️ CCMONITOR_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
         }
       } else {
         logWithTimestamp("📤 本日は既に通知済みのため、Slack通知をスキップします");
@@ -361,7 +361,7 @@ async function main(): Promise<void> {
           await sendSlackNotification(message, config.slackWebhookUrl);
           console.log("✅ Slack通知を送信しました");
         } else {
-          console.log("⚠️ SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
+          console.log("⚠️ CCMONITOR_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
         }
       } else {
         const remaining = config.threshold - currentCost;

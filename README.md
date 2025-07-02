@@ -53,7 +53,7 @@ nohup ccmonitor 33 --daemon > ccmonitor.log 2>&1 &
 Slack通知を有効にするには、Slack Webhook URLを環境変数で設定してください：
 
 ```bash
-export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+export CCMONITOR_SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 ccmonitor 33
 ```
 
@@ -134,7 +134,7 @@ bun run build
 
 | 変数名 | 説明 | 必須 |
 |---------|------|------|
-| `SLACK_WEBHOOK_URL` | Slack Webhook URL | Slack通知を使用する場合のみ |
+| `CCMONITOR_SLACK_WEBHOOK_URL` | Slack Webhook URL | Slack通知を使用する場合のみ |
 
 ## 機能詳細
 

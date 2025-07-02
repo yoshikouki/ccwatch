@@ -194,8 +194,12 @@ interface DaemonState {
   readonly lastExceedanceDate?: string;
 }
 
-let isShuttingDown: boolean = false;
+export let isShuttingDown: boolean = false;
 let intervalId: Timer | null = null;
+
+export function setShuttingDown(value: boolean): void {
+  isShuttingDown = value;
+}
 
 export function showHelp(): void {
   console.log(`ccwatch - Claude Code usage monitor with Slack notifications
@@ -351,7 +355,7 @@ function validateSlackWebhookUrl(url: string): ValidationError | null {
   return null;
 }
 
-export { checkUsageOnce };
+export { checkUsageOnce, runDaemon, main, getCCUsageData, loadDaemonState, saveDaemonState, shouldSendNotification, getToday, logWithTimestamp, setupGracefulShutdown };
 
 export function parseArgs(): Config {
   const args = process.argv.slice(2);
@@ -663,18 +667,19 @@ async function runDaemon(config: Config, deps?: Dependencies): Promise<void> {
   }
 }
 
-async function main(): Promise<void> {
+async function main(deps?: Dependencies): Promise<void> {
   const config = parseArgs();
   
   if (config.daemon) {
     // デーモンモード
-    await runDaemon(config);
+    await runDaemon(config, deps);
   } else {
     // 単発実行モード
+    const dependencies = deps || createDefaultDependencies();
     console.log(`💰 Claude Code使用量監視開始 (閾値: $${config.threshold})`);
     
     try {
-      const usageData = await getCCUsageData();
+      const usageData = await dependencies.fetchUsageData();
       const currentMonth = getCurrentMonth();
       
       const currentMonthUsage = usageData.monthly.find(
@@ -695,7 +700,7 @@ async function main(): Promise<void> {
         
         if (config.slackWebhookUrl) {
           const message = formatCostMessage(currentMonthUsage, config.threshold);
-          await sendSlackNotification(message, config.slackWebhookUrl!);
+          await dependencies.sendNotification(message, config.slackWebhookUrl!);
           console.log("✅ Slack通知を送信しました");
         } else {
           console.log("⚠️ CCWATCH_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");

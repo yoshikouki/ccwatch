@@ -825,3 +825,643 @@ test("構造化ログ - 環境変数経由での動作確認", async () => {
   }
   vi.useRealTimers();
 });
+
+// デーモンモードのテスト群
+describe("デーモンモード", () => {
+  let originalSetInterval: typeof setInterval;
+  let originalSetTimeout: typeof setTimeout;
+  let originalClearInterval: typeof clearInterval;
+  
+  beforeEach(() => {
+    vi.useFakeTimers();
+    originalSetInterval = global.setInterval;
+    originalSetTimeout = global.setTimeout; 
+    originalClearInterval = global.clearInterval;
+  });
+  
+  afterEach(() => {
+    vi.useRealTimers();
+    global.setInterval = originalSetInterval;
+    global.setTimeout = originalSetTimeout;
+    global.clearInterval = originalClearInterval;
+  });
+
+  test("runDaemon - 基本的なデーモン開始と停止", async () => {
+    const mockUsageData = {
+      monthly: [{
+        month: "2025-07",
+        totalCost: 50,
+        modelsUsed: ["claude-sonnet-4-20250514"],
+        modelBreakdowns: []
+      }],
+      totals: { totalCost: 50 }
+    };
+
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      log: vi.fn(),
+      logWithTimestamp: vi.fn()
+    };
+
+    const mockDeps = {
+      fetchUsageData: vi.fn().mockResolvedValue(mockUsageData),
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      readState: vi.fn().mockResolvedValue({}),
+      saveState: vi.fn().mockResolvedValue(undefined),
+      logger: mockLogger
+    };
+
+    const config = {
+      threshold: 40,
+      slackWebhookUrl: "https://hooks.slack.com/test",
+      checkCurrentMonth: true,
+      daemon: true,
+      interval: 10
+    };
+
+    vi.resetModules();
+    const { runDaemon, setShuttingDown } = await import("./index.ts");
+
+    // シャットダウンフラグをリセット
+    setShuttingDown(false);
+
+    // デーモンを非同期で開始
+    const daemonPromise = runDaemon(config, mockDeps);
+
+    // タイマーを進めて初回実行を完了
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // シャットダウンを設定
+    setShuttingDown(true);
+
+    // 少し待ってからプロミスを解決
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await daemonPromise;
+
+    // デーモン開始ログを確認
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining("daemon started"),
+      expect.objectContaining({
+        threshold: 40,
+        interval: 10,
+        component: 'daemon'
+      })
+    );
+
+    // 初回実行の確認
+    expect(mockDeps.fetchUsageData).toHaveBeenCalled();
+    expect(mockDeps.saveState).toHaveBeenCalled();
+  }, 10000);
+
+  test("runDaemon - 定期実行の動作確認", async () => {
+    const mockUsageData = {
+      monthly: [{
+        month: "2025-07",
+        totalCost: 30,
+        modelsUsed: ["claude-sonnet-4-20250514"],
+        modelBreakdowns: []
+      }],
+      totals: { totalCost: 30 }
+    };
+
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      log: vi.fn(),
+      logWithTimestamp: vi.fn()
+    };
+
+    const mockDeps = {
+      fetchUsageData: vi.fn().mockResolvedValue(mockUsageData),
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      readState: vi.fn().mockResolvedValue({}),
+      saveState: vi.fn().mockResolvedValue(undefined),
+      logger: mockLogger
+    };
+
+    const config = {
+      threshold: 40,
+      slackWebhookUrl: "https://hooks.slack.com/test",
+      checkCurrentMonth: true,
+      daemon: true,
+      interval: 5 // 5秒間隔
+    };
+
+    vi.resetModules();
+    const { runDaemon, setShuttingDown } = await import("./index.ts");
+
+    // シャットダウンフラグをリセット
+    setShuttingDown(false);
+
+    const daemonPromise = runDaemon(config, mockDeps);
+
+    // 初回実行
+    await vi.advanceTimersByTimeAsync(1000);
+    
+    // 1回目のインターバル実行
+    await vi.advanceTimersByTimeAsync(5000);
+    
+    // 2回目のインターバル実行  
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // シャットダウン
+    setShuttingDown(true);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await daemonPromise;
+
+    // 複数回実行されていることを確認（初回 + インターバル2回）
+    expect(mockDeps.fetchUsageData).toHaveBeenCalledTimes(3);
+    expect(mockDeps.saveState).toHaveBeenCalledTimes(3);
+  }, 15000);
+});
+
+// メイン関数のテスト群
+describe("メイン実行パス", () => {
+  test("main - 単発実行モード（閾値以下）", async () => {
+    const originalLog = console.log;
+    const originalArgv = process.argv;
+    let logOutput = "";
+
+    console.log = (message: string) => { logOutput += message + "\n"; };
+    process.argv = ["bun", "index.ts", "100"];
+
+    const mockUsageData = {
+      monthly: [{
+        month: "2025-07",
+        totalCost: 50,
+        modelsUsed: ["claude-sonnet-4-20250514"],
+        modelBreakdowns: []
+      }],
+      totals: { totalCost: 50 }
+    };
+
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      log: vi.fn(),
+      logWithTimestamp: vi.fn()
+    };
+
+    const mockDeps = {
+      fetchUsageData: vi.fn().mockResolvedValue(mockUsageData),
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      readState: vi.fn().mockResolvedValue({}),
+      saveState: vi.fn().mockResolvedValue(undefined),
+      logger: mockLogger
+    };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-07-15T12:00:00.000Z"));
+    vi.resetModules();
+
+    const { main } = await import("./index.ts");
+    await main(mockDeps);
+
+    expect(logOutput).toContain("Claude Code使用量監視開始");
+    expect(logOutput).toContain("現在のコスト: $50.00");
+    expect(logOutput).toContain("現在は閾値内です");
+    expect(logOutput).toContain("残り: $50.00");
+
+    console.log = originalLog;
+    process.argv = originalArgv;
+    vi.useRealTimers();
+  });
+
+  test("main - 単発実行モード（閾値超過）", async () => {
+    const originalLog = console.log;
+    const originalArgv = process.argv;
+    let logOutput = "";
+
+    console.log = (message: string) => { logOutput += message + "\n"; };
+    process.argv = ["bun", "index.ts", "30"];
+    process.env.CCWATCH_SLACK_WEBHOOK_URL = "https://hooks.slack.com/test";
+
+    const mockUsageData = {
+      monthly: [{
+        month: "2025-07",
+        totalCost: 50,
+        modelsUsed: ["claude-sonnet-4-20250514"],
+        modelBreakdowns: []
+      }],
+      totals: { totalCost: 50 }
+    };
+
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      log: vi.fn(),
+      logWithTimestamp: vi.fn()
+    };
+
+    const mockDeps = {
+      fetchUsageData: vi.fn().mockResolvedValue(mockUsageData),
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      readState: vi.fn().mockResolvedValue({}),
+      saveState: vi.fn().mockResolvedValue(undefined),
+      logger: mockLogger
+    };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-07-15T12:00:00.000Z"));
+    vi.resetModules();
+
+    const { main } = await import("./index.ts");
+    await main(mockDeps);
+
+    expect(logOutput).toContain("Claude Code使用量監視開始");
+    expect(logOutput).toContain("現在のコスト: $50.00");
+    expect(logOutput).toContain("閾値超過！");
+    expect(logOutput).toContain("超過額: $20.00");
+    expect(logOutput).toContain("Slack通知を送信しました");
+
+    console.log = originalLog;
+    process.argv = originalArgv;
+    delete process.env.CCWATCH_SLACK_WEBHOOK_URL;
+    vi.useRealTimers();
+  });
+
+  test("main - エラーハンドリング", async () => {
+    const originalError = console.error;
+    const originalArgv = process.argv;
+    const originalExit = process.exit;
+    let errorOutput = "";
+    let exitCode = -1;
+
+    console.error = (message: string, error?: any) => { 
+      errorOutput += message + (error ? " " + error : "") + "\n"; 
+    };
+    process.exit = ((code: number) => { exitCode = code; }) as any;
+    process.argv = ["bun", "index.ts", "50"];
+
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      log: vi.fn(),
+      logWithTimestamp: vi.fn()
+    };
+
+    const mockDeps = {
+      fetchUsageData: vi.fn().mockRejectedValue(new Error("API Error")),
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      readState: vi.fn().mockResolvedValue({}),
+      saveState: vi.fn().mockResolvedValue(undefined),
+      logger: mockLogger
+    };
+
+    vi.resetModules();
+    const { main } = await import("./index.ts");
+    await main(mockDeps);
+
+    expect(errorOutput).toContain("エラーが発生しました:");
+    expect(exitCode).toBe(1);
+
+    console.error = originalError;
+    process.argv = originalArgv;
+    process.exit = originalExit;
+  });
+
+  test("main - Slack未設定時の処理", async () => {
+    const originalArgv = process.argv;
+    const originalLog = console.log;
+    
+    let logOutput = "";
+    console.log = (message: string) => { logOutput += message + "\n"; };
+    process.argv = ["bun", "index.ts", "50"];
+
+    const mockUsageData = {
+      monthly: [{
+        month: "2025-07",
+        totalCost: 60,
+        modelsUsed: ["claude-sonnet-4-20250514"],
+        modelBreakdowns: []
+      }],
+      totals: { totalCost: 60 }
+    };
+
+    const mockDeps = {
+      fetchUsageData: vi.fn().mockResolvedValue(mockUsageData),
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      readState: vi.fn().mockResolvedValue({}),
+      saveState: vi.fn().mockResolvedValue(undefined),
+      logger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        log: vi.fn(),
+        logWithTimestamp: vi.fn()
+      }
+    };
+
+    vi.resetModules();
+    const { main } = await import("./index.ts");
+    await main(mockDeps);
+
+    expect(logOutput).toContain("CCWATCH_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
+
+    console.log = originalLog;
+    process.argv = originalArgv;
+  });
+
+  test("main - 閾値内の場合の処理", async () => {
+    const originalArgv = process.argv;
+    const originalLog = console.log;
+    
+    let logOutput = "";
+    console.log = (message: string) => { logOutput += message + "\n"; };
+    process.argv = ["bun", "index.ts", "50"];
+
+    const mockUsageData = {
+      monthly: [{
+        month: "2025-07",
+        totalCost: 30,
+        modelsUsed: ["claude-sonnet-4-20250514"],
+        modelBreakdowns: []
+      }],
+      totals: { totalCost: 30 }
+    };
+
+    const mockDeps = {
+      fetchUsageData: vi.fn().mockResolvedValue(mockUsageData),
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      readState: vi.fn().mockResolvedValue({}),
+      saveState: vi.fn().mockResolvedValue(undefined),
+      logger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        log: vi.fn(),
+        logWithTimestamp: vi.fn()
+      }
+    };
+
+    vi.resetModules();
+    const { main } = await import("./index.ts");
+    await main(mockDeps);
+
+    expect(logOutput).toContain("現在は閾値内です (残り: $20.00)");
+
+    console.log = originalLog;
+    process.argv = originalArgv;
+  });
+
+  test("main - 当月データなしの場合", async () => {
+    const originalArgv = process.argv;
+    const originalLog = console.log;
+    
+    let logOutput = "";
+    console.log = (message: string) => { logOutput += message + "\n"; };
+    process.argv = ["bun", "index.ts", "50"];
+
+    // 当月以外のデータのみ含むusageData
+    const mockUsageData = {
+      monthly: [{
+        month: "2025-06", // 現在月と異なる
+        totalCost: 30,
+        modelsUsed: ["claude-sonnet-4-20250514"],
+        modelBreakdowns: []
+      }],
+      totals: { totalCost: 30 }
+    };
+
+    const mockDeps = {
+      fetchUsageData: vi.fn().mockResolvedValue(mockUsageData),
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      readState: vi.fn().mockResolvedValue({}),
+      saveState: vi.fn().mockResolvedValue(undefined),
+      logger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        log: vi.fn(),
+        logWithTimestamp: vi.fn()
+      }
+    };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-07-15"));
+
+    vi.resetModules();
+    const { main } = await import("./index.ts");
+    await main(mockDeps);
+
+    expect(logOutput).toContain("2025-07の使用データが見つかりません");
+
+    vi.useRealTimers();
+    console.log = originalLog;
+    process.argv = originalArgv;
+  });
+
+  test("import.meta.main - エントリーポイント実行", async () => {
+    // import.meta.main のテストは実際のファイル実行をテスト
+    const { spawn } = await import("child_process");
+    const { promisify } = await import("util");
+    
+    return new Promise((resolve, reject) => {
+      const child = spawn("bun", ["src/index.ts", "100"], {
+        cwd: process.cwd(),
+        env: { ...process.env, CCWATCH_SLACK_WEBHOOK_URL: undefined },
+        stdio: "pipe"
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout?.on("data", (data) => {
+        stdout += data.toString();
+      });
+
+      child.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      child.on("close", (code) => {
+        try {
+          expect(code).toBe(0);
+          expect(stdout).toContain("Claude Code使用量監視開始");
+          resolve(undefined);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      child.on("error", reject);
+    });
+  });
+});
+
+describe("ファイルI/O", () => {
+  const stateFilePath = "/tmp/.ccwatch-state.json";
+  
+  beforeEach(() => {
+    // テスト前にファイル削除
+    try {
+      const fs = require('fs');
+      fs.unlinkSync(stateFilePath);
+    } catch (error) {
+      // ファイルが存在しない場合は無視
+    }
+  });
+
+  afterEach(() => {
+    // テスト後にファイル削除
+    try {
+      const fs = require('fs');
+      fs.unlinkSync(stateFilePath);
+    } catch (error) {
+      // ファイルが存在しない場合は無視
+    }
+  });
+
+  test("loadDaemonState - ファイルが存在しない場合", async () => {
+    const originalEnv = process.env.HOME;
+    process.env.HOME = "/tmp";
+
+    vi.resetModules();
+    const { loadDaemonState } = await import("./index.ts");
+    const state = await loadDaemonState();
+    
+    expect(state).toEqual({});
+    
+    process.env.HOME = originalEnv;
+  });
+
+  test("saveDaemonState - 正常な保存", async () => {
+    const originalEnv = process.env.HOME;
+    process.env.HOME = "/tmp";
+
+    const testState = {
+      lastNotificationDate: "2025-07-01",
+      lastExceedanceDate: "2025-07-01"
+    };
+
+    vi.resetModules();
+    const { saveDaemonState, loadDaemonState } = await import("./index.ts");
+    
+    await saveDaemonState(testState);
+    const loadedState = await loadDaemonState();
+    
+    expect(loadedState).toEqual(testState);
+    
+    process.env.HOME = originalEnv;
+  });
+
+  test("loadDaemonState - 不正なJSONファイル", async () => {
+    const originalEnv = process.env.HOME;
+    process.env.HOME = "/tmp";
+
+    // 不正なJSONファイルを作成
+    const fs = require('fs');
+    const stateFilePath = "/tmp/.ccwatch-state.json";
+    fs.writeFileSync(stateFilePath, "invalid json content");
+
+    vi.resetModules();
+    const { loadDaemonState } = await import("./index.ts");
+    const state = await loadDaemonState();
+    
+    expect(state).toEqual({});
+    
+    // テスト後のクリーンアップ
+    try {
+      fs.unlinkSync(stateFilePath);
+    } catch (error) {
+      // ファイルが存在しない場合は無視
+    }
+    
+    process.env.HOME = originalEnv;
+  });
+});
+
+describe("ユーティリティ関数", () => {
+  test("getToday - 現在日付の取得", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-07-15T12:30:00Z"));
+
+    vi.resetModules();
+    const { getToday } = await import("./index.ts");
+    const today = getToday();
+    
+    expect(today).toBe("2025-07-15");
+    
+    vi.useRealTimers();
+  });
+
+  test("shouldSendNotification - 通知判定ロジック", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-07-15T12:30:00Z"));
+
+    vi.resetModules();
+    const { shouldSendNotification } = await import("./index.ts");
+    
+    // 閾値を超えていない場合
+    expect(shouldSendNotification({}, false)).toBe(false);
+    
+    // 閾値を超えているが今日既に通知済み
+    expect(shouldSendNotification({ lastNotificationDate: "2025-07-15" }, true)).toBe(false);
+    
+    // 閾値を超えており、初回通知
+    expect(shouldSendNotification({}, true)).toBe(true);
+    
+    // 閾値を超えており、異なる日の超過
+    expect(shouldSendNotification({ lastExceedanceDate: "2025-07-14" }, true)).toBe(true);
+    
+    // 同日内での初回通知
+    expect(shouldSendNotification({ lastExceedanceDate: "2025-07-15", lastNotificationDate: "2025-07-14" }, true)).toBe(true);
+    
+    vi.useRealTimers();
+  });
+
+  test("logWithTimestamp - タイムスタンプ付きログ", async () => {
+    const originalLog = console.log;
+    let logOutput = "";
+    console.log = (message: string) => { logOutput += message + "\n"; };
+
+    vi.resetModules();
+    const { logWithTimestamp } = await import("./index.ts");
+    logWithTimestamp("テストメッセージ");
+    
+    expect(logOutput).toContain("テストメッセージ");
+    expect(logOutput).toMatch(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]/);
+    
+    console.log = originalLog;
+  });
+
+  test("setupGracefulShutdown - シグナルハンドリング", async () => {
+    const originalProcessOn = process.on;
+    const signalHandlers: Record<string, Function> = {};
+    
+    process.on = vi.fn((signal: string, handler: Function) => {
+      signalHandlers[signal] = handler;
+      return process;
+    }) as any;
+
+    vi.resetModules();
+    const { setupGracefulShutdown, setShuttingDown } = await import("./index.ts");
+    
+    await setupGracefulShutdown();
+    
+    expect(process.on).toHaveBeenCalledWith("SIGINT", expect.any(Function));
+    expect(process.on).toHaveBeenCalledWith("SIGTERM", expect.any(Function));
+    
+    // シグナルハンドラーが設定されていることを確認
+    expect(signalHandlers.SIGINT).toBeDefined();
+    expect(signalHandlers.SIGTERM).toBeDefined();
+    
+    process.on = originalProcessOn;
+  });
+});

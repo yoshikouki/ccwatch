@@ -1,11 +1,11 @@
 {
-  "name": "claude-cost-watch",
+  "name": "ccwatch",
   "version": "1.0.0",
   "description": "Claude Code usage monitor with Slack notifications",
   "module": "index.ts",
   "type": "module",
   "bin": {
-    "claude-cost-watch": "./dist/index.js"
+    "ccwatch": "./dist/index.js"
   },
   "scripts": {
     "build": "bun build index.ts --outdir dist --target node --format esm && chmod +x dist/index.js",

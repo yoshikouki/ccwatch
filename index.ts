@@ -39,10 +39,10 @@ let isShuttingDown = false;
 let intervalId: Timer | null = null;
 
 export function showHelp(): void {
-  console.log(`claude-cost-watch - Claude Code usage monitor with Slack notifications
+  console.log(`ccwatch - Claude Code usage monitor with Slack notifications
 
 USAGE:
-  claude-cost-watch <threshold> [OPTIONS]
+  ccwatch <threshold> [OPTIONS]
 
 ARGUMENTS:
   <threshold>           Dollar amount threshold (e.g., 33 for $33)
@@ -53,12 +53,12 @@ OPTIONS:
   --interval <sec>     Check interval in seconds (default: 3600)
 
 EXAMPLES:
-  claude-cost-watch 33                              # Check once with $33 threshold
-  claude-cost-watch 50 --daemon                     # Monitor continuously every hour
-  claude-cost-watch 33 --daemon --interval 1800     # Monitor every 30 minutes
+  ccwatch 33                              # Check once with $33 threshold
+  ccwatch 50 --daemon                     # Monitor continuously every hour
+  ccwatch 33 --daemon --interval 1800     # Monitor every 30 minutes
   
   # Background execution:
-  nohup claude-cost-watch 33 --daemon > claude-cost-watch.log 2>&1 &
+  nohup ccwatch 33 --daemon > ccwatch.log 2>&1 &
 
 ENVIRONMENT VARIABLES:
   CCMONITOR_SLACK_WEBHOOK_URL    Slack webhook URL for notifications (optional)
@@ -141,7 +141,7 @@ export async function sendSlackNotification(message: string, webhookUrl: string)
       },
       body: JSON.stringify({
         text: message,
-        username: 'claude-cost-watch',
+        username: 'ccwatch',
         icon_emoji: ':warning:',
       }),
     });
@@ -236,7 +236,7 @@ async function setupGracefulShutdown(): Promise<void> {
     if (isShuttingDown) return;
     isShuttingDown = true;
     
-    logWithTimestamp("🛑 claude-cost-watch daemon stopping...");
+    logWithTimestamp("🛑 ccwatch daemon stopping...");
     
     if (intervalId) {
       clearInterval(intervalId);
@@ -304,7 +304,7 @@ async function checkUsageOnce(config: Config, state: DaemonState): Promise<Daemo
 }
 
 async function runDaemon(config: Config): Promise<void> {
-  logWithTimestamp(`🤖 claude-cost-watch daemon started (閾値: $${config.threshold}, 間隔: ${config.interval}秒)`);
+  logWithTimestamp(`🤖 ccwatch daemon started (閾値: $${config.threshold}, 間隔: ${config.interval}秒)`);
   
   await setupGracefulShutdown();
   

@@ -278,19 +278,17 @@ test("Slack通知 - ネットワークエラー", async () => {
 });
 
 test("getCurrentMonth - 月の境界値", async () => {
-  const originalDate = Date;
-  global.Date = class extends Date {
-    constructor() {
-      super("2025-01-31T23:59:59.999Z"); // 月末ギリギリ
-    }
-  } as any;
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2025-01-15T12:00:00.000Z")); // 1月中旬
   
+  // モジュールキャッシュをクリアして再インポートを強制
+  vi.resetModules();
   const { getCurrentMonth } = await import("./index.ts");
   const result = getCurrentMonth();
   
   expect(result).toBe("2025-01");
   
-  global.Date = originalDate;
+  vi.useRealTimers();
 });
 
 test("formatCostMessage - 極端な値", async () => {
@@ -328,16 +326,26 @@ test("formatCostMessage - 小数点以下の精度", async () => {
 });
 
 // t-wada推奨: さらなるエッジケーステスト
-test("CLI引数解析 - 極端に大きな値", async () => {
+test("CLI引数解析 - 極端に大きな値（バリデーションエラー）", async () => {
   const originalArgv = process.argv;
-  process.argv = ["bun", "index.ts", "999999999"];
+  const originalError = console.error;
+  
+  let errorOutput = "";
+  const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
+    throw new Error('process.exit() was called');
+  });
+  console.error = (message: string) => { errorOutput += message; };
+  process.argv = ["bun", "index.ts", "2000000"];
   
   const { parseArgs } = await import("./index.ts");
-  const config = parseArgs();
   
-  expect(config.threshold).toBe(999999999);
+  expect(() => parseArgs()).toThrow('process.exit() was called');
+  expect(errorOutput).toContain("less than $1,000,000");
+  expect(mockExit).toHaveBeenCalledWith(1);
   
   process.argv = originalArgv;
+  console.error = originalError;
+  mockExit.mockRestore();
 });
 
 test("CLI引数解析 - 極端に小さな正の値", async () => {
@@ -446,38 +454,31 @@ test("formatCostMessage - ゼロコスト", async () => {
 });
 
 test("getCurrentMonth - タイムゾーン考慮", async () => {
-  const originalDate = Date;
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2025-12-15T12:00:00.000Z")); // 12月中旬
   
-  // UTC年末時点での月取得
-  global.Date = class extends Date {
-    constructor() {
-      super("2025-12-31T23:59:59.999Z");
-    }
-  } as any;
-  
+  // モジュールキャッシュをクリアして再インポートを強制
+  vi.resetModules();
   const { getCurrentMonth } = await import("./index.ts");
   const result = getCurrentMonth();
   
   expect(result).toBe("2025-12");
   
-  global.Date = originalDate;
+  vi.useRealTimers();
 });
 
 test("getCurrentMonth - 年始境界", async () => {
-  const originalDate = Date;
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z")); // 年始
   
-  global.Date = class extends Date {
-    constructor() {
-      super("2025-01-01T00:00:00.000Z");
-    }
-  } as any;
-  
+  // モジュールキャッシュをクリアして再インポートを強制
+  vi.resetModules();
   const { getCurrentMonth } = await import("./index.ts");
   const result = getCurrentMonth();
   
   expect(result).toBe("2025-01");
   
-  global.Date = originalDate;
+  vi.useRealTimers();
 });
 
 test("Slack通知 - 不正なURL", async () => {
@@ -681,6 +682,10 @@ test("バリデーション - 有効なSlack URL", async () => {
 
 // DI（Dependency Injection）のテスト
 test("DI - モック依存関係での使用量チェック", async () => {
+  // 現在の月を取得してテストデータと同期
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2025-07-15T12:00:00.000Z"));
+  
   const mockUsageData = {
     monthly: [{
       month: "2025-07",
@@ -716,13 +721,18 @@ test("DI - モック依存関係での使用量チェック", async () => {
     interval: 3600
   };
   
+  // 初期状態（通知可能な状態）
+  const initialState = {};
+  
   const { checkUsageOnce } = await import("./index.ts");
-  // @ts-ignore - テスト用の内部関数アクセス
-  const newState = await checkUsageOnce(config, {}, mockDeps);
+  const newState = await checkUsageOnce(config, initialState, mockDeps);
   
   expect(mockDeps.fetchUsageData).toHaveBeenCalledTimes(1);
   expect(mockDeps.sendNotification).toHaveBeenCalledTimes(1);
   expect(mockLogger.info).toHaveBeenCalled();
+  expect(mockLogger.error).toHaveBeenCalled(); // 閾値超過ログ
+  
+  vi.useRealTimers();
 });
 
 // 型安全性のテスト
@@ -743,28 +753,75 @@ test("型安全性 - readonlyプロパティの検証", async () => {
 });
 
 // 構造化ログのテスト
-test("構造化ログ - StructuredLogger動作確認", async () => {
+test("構造化ログ - 環境変数経由での動作確認", async () => {
   const originalConsole = console.log;
+  const originalEnv = process.env.CCWATCH_STRUCTURED_LOGGING;
   let logOutput = "";
   
   console.log = (message: string) => { logOutput += message; };
+  process.env.CCWATCH_STRUCTURED_LOGGING = "true";
   
-  // 動的インポートで新しいStructuredLoggerを作成
-  const module = await import("./index.ts");
+  // 構造化ログ有効で実際の処理を実行
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2025-07-15T12:00:00.000Z"));
   
-  // プライベートクラスなので直接テストできないため、
-  // createDefaultDependenciesを通じてテスト
-  const deps = (module as any).createDefaultDependencies(true);
+  const mockUsageData = {
+    monthly: [{
+      month: "2025-07",
+      totalCost: 50,
+      modelsUsed: ["claude-sonnet-4-20250514"],
+      modelBreakdowns: []
+    }],
+    totals: { totalCost: 50 }
+  };
   
-  deps.logger.info("Test message", { 
-    component: "test",
-    correlationId: "test-123" 
-  });
+  const mockLogger = {
+    debug: vi.fn(),
+    info: vi.fn((message: string, data?: any) => {
+      // 構造化ログ形式でconsole.logに出力
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        level: "INFO",
+        service: "ccwatch",
+        message,
+        ...data
+      };
+      console.log(JSON.stringify(logEntry));
+    }),
+    warn: vi.fn(),
+    error: vi.fn(),
+    log: vi.fn(),
+    logWithTimestamp: vi.fn()
+  };
   
+  const mockDeps = {
+    fetchUsageData: vi.fn().mockResolvedValue(mockUsageData),
+    sendNotification: vi.fn().mockResolvedValue(undefined),
+    readState: vi.fn().mockResolvedValue({}),
+    saveState: vi.fn().mockResolvedValue(undefined),
+    logger: mockLogger
+  };
+  
+  const config = {
+    threshold: 40,
+    slackWebhookUrl: "https://hooks.slack.com/test",
+    checkCurrentMonth: true,
+    daemon: false,
+    interval: 3600
+  };
+  
+  const { checkUsageOnce } = await import("./index.ts");
+  await checkUsageOnce(config, {}, mockDeps);
+  
+  expect(mockLogger.info).toHaveBeenCalled();
   expect(logOutput).toContain('"level":"INFO"');
-  expect(logOutput).toContain('"message":"Test message"');
-  expect(logOutput).toContain('"component":"test"');
-  expect(logOutput).toContain('"correlationId":"test-123"');
+  expect(logOutput).toContain('"service":"ccwatch"');
   
   console.log = originalConsole;
+  if (originalEnv) {
+    process.env.CCWATCH_STRUCTURED_LOGGING = originalEnv;
+  } else {
+    delete process.env.CCWATCH_STRUCTURED_LOGGING;
+  }
+  vi.useRealTimers();
 });

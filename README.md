@@ -1,4 +1,4 @@
-# ccmonitor
+# ccwatch
 
 Claude Code使用量を監視し、月額の閾値を超過した際にSlack通知を送信するCLIツールです。
 
@@ -14,13 +14,13 @@ Claude Code使用量を監視し、月額の閾値を超過した際にSlack通�
 
 ```bash
 # npmを使用
-npm install -g ccmonitor
+npm install -g ccwatch
 
 # bunを使用  
-bun install -g ccmonitor
+bun install -g ccwatch
 
 # npxで直接実行（推奨）
-npx ccmonitor@latest 33
+npx ccwatch@latest 33
 ```
 
 ## 使用方法
@@ -29,23 +29,23 @@ npx ccmonitor@latest 33
 
 ```bash
 # $33を閾値として一度だけチェック
-ccmonitor 33
+ccwatch 33
 
 # $100を閾値として一度だけチェック
-ccmonitor 100
+ccwatch 100
 ```
 
 ### デーモンモード（常時監視）
 
 ```bash
 # $33を閾値として常時監視（1時間間隔）
-ccmonitor 33 --daemon
+ccwatch 33 --daemon
 
 # $50を閾値として30分間隔で監視
-ccmonitor 50 --daemon --interval 1800
+ccwatch 50 --daemon --interval 1800
 
 # バックグラウンドで実行
-nohup ccmonitor 33 --daemon > ccmonitor.log 2>&1 &
+nohup ccwatch 33 --daemon > ccwatch.log 2>&1 &
 ```
 
 ### Slack通知の設定
@@ -54,14 +54,14 @@ Slack通知を有効にするには、Slack Webhook URLを環境変数で設定�
 
 ```bash
 export CCMONITOR_SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-ccmonitor 33
+ccwatch 33
 ```
 
 ### 実行例
 
 **単発実行:**
 ```bash
-$ ccmonitor 33
+$ ccwatch 33
 💰 Claude Code使用量監視開始 (閾値: $33)
 📊 2025-07の現在のコスト: $40.23
 🚨 閾値超過！ 超過額: $7.23
@@ -70,7 +70,7 @@ $ ccmonitor 33
 
 閾値内の場合：
 ```bash
-$ ccmonitor 50
+$ ccwatch 50
 💰 Claude Code使用量監視開始 (閾値: $50)
 📊 2025-07の現在のコスト: $40.23
 ✅ 現在は閾値内です (残り: $9.77)
@@ -78,8 +78,8 @@ $ ccmonitor 50
 
 **デーモンモード:**
 ```bash
-$ ccmonitor 33 --daemon --interval 10
-[2025-07-01T15:33:07.881Z] 🤖 ccmonitor daemon started (閾値: $33, 間隔: 10秒)
+$ ccwatch 33 --daemon --interval 10
+[2025-07-01T15:33:07.881Z] 🤖 ccwatch daemon started (閾値: $33, 間隔: 10秒)
 [2025-07-01T15:33:08.678Z] 📊 2025-07の現在のコスト: $40.72 (閾値: $33)
 [2025-07-01T15:33:08.678Z] 🚨 閾値超過！ 超過額: $7.72
 [2025-07-01T15:33:08.678Z] ✅ Slack通知を送信しました
@@ -87,7 +87,7 @@ $ ccmonitor 33 --daemon --interval 10
 [2025-07-01T15:33:19.502Z] 🚨 閾値超過！ 超過額: $7.72
 [2025-07-01T15:33:19.502Z] 📤 本日は既に通知済みのため、Slack通知をスキップします
 # Ctrl+C で停止
-[2025-07-01T15:33:25.123Z] 🛑 ccmonitor daemon stopping...
+[2025-07-01T15:33:25.123Z] 🛑 ccwatch daemon stopping...
 ```
 
 ## Slack通知メッセージ例
@@ -114,8 +114,8 @@ $ ccmonitor 33 --daemon --interval 10
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/yoshikouki/ccmonitor.git
-cd ccmonitor
+git clone https://github.com/yoshikouki/ccwatch.git
+cd ccwatch
 
 # 依存関係をインストール
 bun install

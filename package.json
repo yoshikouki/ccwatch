@@ -2,18 +2,18 @@
   "name": "ccwatch",
   "version": "1.0.0",
   "description": "Claude Code usage monitor with Slack notifications",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "bin": {
     "ccwatch": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun build index.ts --outdir dist --target node --format esm && chmod +x dist/index.js",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm && chmod +x dist/index.js",
     "prepublishOnly": "npm run build",
-    "dev": "bun --hot index.ts",
-    "test": "bun test index.test.ts",
-    "test:e2e": "bun test e2e.test.ts",
-    "test:all": "bun test",
+    "dev": "bun --hot src/index.ts",
+    "test": "bun test src/index.test.ts",
+    "test:e2e": "bun test src/e2e.test.ts",
+    "test:all": "bun test src/",
     "typecheck": "tsc --noEmit"
   },
   "keywords": ["claude", "claude-code", "usage", "monitor", "slack", "notification", "cost", "threshold", "daemon"],
@@ -21,12 +21,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yoshikouki/ccmonitor.git"
+    "url": "https://github.com/yoshikouki/ccwatch.git"
   },
   "bugs": {
-    "url": "https://github.com/yoshikouki/ccmonitor/issues"
+    "url": "https://github.com/yoshikouki/ccwatch/issues"
   },
-  "homepage": "https://github.com/yoshikouki/ccmonitor#readme",
+  "homepage": "https://github.com/yoshikouki/ccwatch#readme",
   "files": [
     "dist",
     "README.md",

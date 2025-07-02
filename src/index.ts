@@ -229,7 +229,7 @@ DAEMON MODE FEATURES:
   • State persistence in ~/.ccmonitor-state.json
   • Timestamped logging
 
-For more information, visit: https://github.com/yoshikouki/ccmonitor`);
+For more information, visit: https://github.com/yoshikouki/ccwatch`);
 }
 
 function validateThreshold(threshold: number): ValidationError | null {

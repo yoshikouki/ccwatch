@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 // E2E テスト用のヘルパー関数
 function getTestStateFile(): string {
-  return join(process.env.HOME || "/tmp", ".ccmonitor-state-test.json");
+  return join(process.env.HOME || "/tmp", ".ccwatch-state-test.json");
 }
 
 function cleanupTestFiles(): void {
@@ -68,7 +68,7 @@ test("E2E - 単発実行モード（基本動作）", async () => {
   try {
     const result = execSync("bun run dist/index.js 200", { 
       encoding: "utf8",
-      env: { ...process.env, CCMONITOR_SLACK_WEBHOOK_URL: undefined }
+      env: { ...process.env, CCWATCH_SLACK_WEBHOOK_URL: undefined }
     });
     
     // 基本的な出力が含まれることを確認
@@ -86,7 +86,7 @@ test("E2E - 単発実行モード（実際の使用量チェック）", async ()
   try {
     const result = execSync("bun run dist/index.js 50", { 
       encoding: "utf8",
-      env: { ...process.env, CCMONITOR_SLACK_WEBHOOK_URL: undefined }
+      env: { ...process.env, CCWATCH_SLACK_WEBHOOK_URL: undefined }
     });
     
     // 現実的に閾値超過しているはず
@@ -134,7 +134,7 @@ test("E2E - デーモンモード（短時間実行）", async () => {
   try {
     // デーモンを3秒間実行（インターバル最小値10秒を使用）
     const child = spawn("bun", ["run", "dist/index.js", "40", "--daemon", "--interval", "10"], {
-      env: { ...process.env, CCMONITOR_SLACK_WEBHOOK_URL: undefined },
+      env: { ...process.env, CCWATCH_SLACK_WEBHOOK_URL: undefined },
       stdio: "pipe"
     });
     
@@ -168,7 +168,7 @@ test("E2E - 不正なSlack URL", async () => {
   try {
     execSync("bun run dist/index.js 50", { 
       encoding: "utf8",
-      env: { ...process.env, CCMONITOR_SLACK_WEBHOOK_URL: "invalid-url" }
+      env: { ...process.env, CCWATCH_SLACK_WEBHOOK_URL: "invalid-url" }
     });
     expect().fail("Should have thrown an error");
   } catch (error: any) {
@@ -186,14 +186,14 @@ test("E2E - 設定ファイル作成確認", async () => {
     execSync("bun run dist/index.js 50 --daemon --interval 10", { 
       encoding: "utf8",
       timeout: 2000,
-      env: { ...process.env, CCMONITOR_SLACK_WEBHOOK_URL: undefined }
+      env: { ...process.env, CCWATCH_SLACK_WEBHOOK_URL: undefined }
     });
   } catch (error) {
     // タイムアウトは期待される
   }
   
   // 状態ファイルが作成されたかチェック
-  const stateFile = join(process.env.HOME || "/tmp", ".ccmonitor-state.json");
+  const stateFile = join(process.env.HOME || "/tmp", ".ccwatch-state.json");
   
   if (existsSync(stateFile)) {
     const stateData = JSON.parse(readFileSync(stateFile, "utf8"));
@@ -212,7 +212,7 @@ test("E2E - 構造化ログ出力", async () => {
       encoding: "utf8",
       env: { 
         ...process.env, 
-        CCMONITOR_SLACK_WEBHOOK_URL: undefined,
+        CCWATCH_SLACK_WEBHOOK_URL: undefined,
         CCWATCH_STRUCTURED_LOGGING: "true"
       }
     });

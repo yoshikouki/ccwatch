@@ -226,8 +226,8 @@ test("CLI引数解析 - 負のインターバル", async () => {
 
 // 環境変数テスト
 test("環境変数未設定時の動作", async () => {
-  const originalEnv = process.env.CCMONITOR_SLACK_WEBHOOK_URL;
-  delete process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+  const originalEnv = process.env.CCWATCH_SLACK_WEBHOOK_URL;
+  delete process.env.CCWATCH_SLACK_WEBHOOK_URL;
   
   const originalArgv = process.argv;
   process.argv = ["bun", "index.ts", "33"];
@@ -239,14 +239,14 @@ test("環境変数未設定時の動作", async () => {
   
   process.argv = originalArgv;
   if (originalEnv) {
-    process.env.CCMONITOR_SLACK_WEBHOOK_URL = originalEnv;
+    process.env.CCWATCH_SLACK_WEBHOOK_URL = originalEnv;
   }
 });
 
 test("環境変数設定時の動作", async () => {
-  const originalEnv = process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+  const originalEnv = process.env.CCWATCH_SLACK_WEBHOOK_URL;
   const testUrl = "https://hooks.slack.com/test";
-  process.env.CCMONITOR_SLACK_WEBHOOK_URL = testUrl;
+  process.env.CCWATCH_SLACK_WEBHOOK_URL = testUrl;
   
   const originalArgv = process.argv;
   process.argv = ["bun", "index.ts", "33"];
@@ -258,9 +258,9 @@ test("環境変数設定時の動作", async () => {
   
   process.argv = originalArgv;
   if (originalEnv) {
-    process.env.CCMONITOR_SLACK_WEBHOOK_URL = originalEnv;
+    process.env.CCWATCH_SLACK_WEBHOOK_URL = originalEnv;
   } else {
-    delete process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+    delete process.env.CCWATCH_SLACK_WEBHOOK_URL;
   }
 });
 
@@ -634,14 +634,14 @@ test("バリデーション - 不正なSlack URL", async () => {
   const originalArgv = process.argv;
   const originalExit = process.exit;
   const originalError = console.error;
-  const originalEnv = process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+  const originalEnv = process.env.CCWATCH_SLACK_WEBHOOK_URL;
   
   let exitCode = -1;
   let errorOutput = "";
   
   process.exit = ((code: number) => { exitCode = code; }) as any;
   console.error = (message: string) => { errorOutput += message; };
-  process.env.CCMONITOR_SLACK_WEBHOOK_URL = "https://example.com/invalid";
+  process.env.CCWATCH_SLACK_WEBHOOK_URL = "https://example.com/invalid";
   process.argv = ["bun", "index.ts", "33"];
   
   const { parseArgs } = await import("./index.ts");
@@ -654,17 +654,17 @@ test("バリデーション - 不正なSlack URL", async () => {
   process.exit = originalExit;
   console.error = originalError;
   if (originalEnv) {
-    process.env.CCMONITOR_SLACK_WEBHOOK_URL = originalEnv;
+    process.env.CCWATCH_SLACK_WEBHOOK_URL = originalEnv;
   } else {
-    delete process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+    delete process.env.CCWATCH_SLACK_WEBHOOK_URL;
   }
 });
 
 test("バリデーション - 有効なSlack URL", async () => {
   const originalArgv = process.argv;
-  const originalEnv = process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+  const originalEnv = process.env.CCWATCH_SLACK_WEBHOOK_URL;
   
-  process.env.CCMONITOR_SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX";
+  process.env.CCWATCH_SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX";
   process.argv = ["bun", "index.ts", "33"];
   
   const { parseArgs } = await import("./index.ts");
@@ -675,9 +675,9 @@ test("バリデーション - 有効なSlack URL", async () => {
   
   process.argv = originalArgv;
   if (originalEnv) {
-    process.env.CCMONITOR_SLACK_WEBHOOK_URL = originalEnv;
+    process.env.CCWATCH_SLACK_WEBHOOK_URL = originalEnv;
   } else {
-    delete process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+    delete process.env.CCWATCH_SLACK_WEBHOOK_URL;
   }
 });
 

@@ -220,13 +220,14 @@ EXAMPLES:
   nohup ccwatch 33 --daemon > ccwatch.log 2>&1 &
 
 ENVIRONMENT VARIABLES:
-  CCMONITOR_SLACK_WEBHOOK_URL    Slack webhook URL for notifications (optional)
+  CCWATCH_SLACK_WEBHOOK_URL      Slack webhook URL for notifications (optional)
+                                 CCMONITOR_SLACK_WEBHOOK_URL (deprecated, use CCWATCH_SLACK_WEBHOOK_URL)
 
 DAEMON MODE FEATURES:
   • Automatic periodic monitoring
   • Duplicate notification prevention (once per day)
   • Graceful shutdown with Ctrl+C
-  • State persistence in ~/.ccmonitor-state.json
+  • State persistence in ~/.ccwatch-state.json
   • Timestamped logging
 
 For more information, visit: https://github.com/yoshikouki/ccwatch`);
@@ -391,7 +392,7 @@ export function parseArgs(): Config {
 
   const config = {
     threshold,
-    slackWebhookUrl: process.env.CCMONITOR_SLACK_WEBHOOK_URL,
+    slackWebhookUrl: process.env.CCWATCH_SLACK_WEBHOOK_URL || process.env.CCMONITOR_SLACK_WEBHOOK_URL,
     checkCurrentMonth: true,
     daemon,
     interval,
@@ -464,7 +465,7 @@ export function formatCostMessage(usage: MonthlyUsage, threshold: number): strin
 
 function getStateFilePath(): string {
   const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
-  return join(homeDir, '.ccmonitor-state.json');
+  return join(homeDir, '.ccwatch-state.json');
 }
 
 async function loadDaemonState(): Promise<DaemonState> {
@@ -601,7 +602,7 @@ async function checkUsageOnce(config: Config, state: DaemonState, deps?: Depende
           (newState as any).lastNotificationDate = today;
         } else {
           dependencies.logger.warn("Slack通知をスキップ: 環境変数未設定", {
-            reason: 'CCMONITOR_SLACK_WEBHOOK_URL not set',
+            reason: 'CCWATCH_SLACK_WEBHOOK_URL not set',
             component: 'notification'
           });
         }
@@ -698,7 +699,7 @@ async function main(): Promise<void> {
           await sendSlackNotification(message, config.slackWebhookUrl!);
           console.log("✅ Slack通知を送信しました");
         } else {
-          console.log("⚠️ CCMONITOR_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
+          console.log("⚠️ CCWATCH_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
         }
       } else {
         const remaining = config.threshold - currentCost;

@@ -53,7 +53,7 @@ nohup ccwatch 33 --daemon > ccwatch.log 2>&1 &
 Slack通知を有効にするには、Slack Webhook URLを環境変数で設定してください：
 
 ```bash
-export CCMONITOR_SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+export CCWATCH_SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 ccwatch 33
 ```
 
@@ -134,7 +134,7 @@ bun run build
 
 | 変数名 | 説明 | 必須 |
 |---------|------|------|
-| `CCMONITOR_SLACK_WEBHOOK_URL` | Slack Webhook URL | Slack通知を使用する場合のみ |
+| `CCWATCH_SLACK_WEBHOOK_URL` | Slack Webhook URL | Slack通知を使用する場合のみ |
 
 ## 機能詳細
 
@@ -142,7 +142,7 @@ bun run build
 
 - **定期監視**: 設定されたインターバルで自動チェック（デフォルト: 1時間）
 - **重複通知防止**: 同じ日に複数回通知されることを防ぐ
-- **状態保持**: `~/.ccmonitor-state.json`に状態を保存
+- **状態保持**: `~/.ccwatch-state.json`に状態を保存
 - **Graceful shutdown**: Ctrl+C（SIGINT）での正常終了
 - **タイムスタンプ付きログ**: すべての操作にタイムスタンプを記録
 

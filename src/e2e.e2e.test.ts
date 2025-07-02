@@ -1,6 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
-import { test, expect, mock } from "bun:test";
+import { test, expect, vi } from "vitest";
 import { execSync, spawn } from "node:child_process";
 import { existsSync, unlinkSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";

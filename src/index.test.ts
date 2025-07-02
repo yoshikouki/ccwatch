@@ -1,4 +1,4 @@
-import { test, expect, mock } from "bun:test";
+import { test, expect, vi } from "vitest";
 
 test("getCurrentMonth - 正しい月形式", async () => {
   const { getCurrentMonth } = await import("./index.ts");
@@ -27,12 +27,10 @@ test("formatCostMessage - メッセージ形式", async () => {
 
 test("Slack通知送信 - 成功ケース", async () => {
   const originalFetch = global.fetch;
-  const mockFetch = mock(() => 
-    Promise.resolve({
-      ok: true,
-      status: 200
-    } as Response)
-  );
+  const mockFetch = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200
+  } as Response);
   global.fetch = mockFetch as any;
   
   const { sendSlackNotification } = await import("./index.ts");
@@ -46,7 +44,7 @@ test("Slack通知送信 - 成功ケース", async () => {
 
 test("Slack通知送信 - エラーケース", async () => {
   const originalFetch = global.fetch;
-  const mockFetch = mock(() => 
+  const mockFetch = vi.fn(() => 
     Promise.resolve({
       ok: false,
       status: 400
@@ -267,7 +265,7 @@ test("環境変数設定時の動作", async () => {
 // エラーハンドリングテスト
 test("Slack通知 - ネットワークエラー", async () => {
   const originalFetch = global.fetch;
-  const mockFetch = mock(() => 
+  const mockFetch = vi.fn(() => 
     Promise.reject(new Error("Network error"))
   );
   global.fetch = mockFetch as any;
@@ -490,7 +488,7 @@ test("Slack通知 - 不正なURL", async () => {
 
 test("Slack通知 - 空メッセージ", async () => {
   const originalFetch = global.fetch;
-  const mockFetch = mock(() => 
+  const mockFetch = vi.fn(() => 
     Promise.resolve({
       ok: true,
       status: 200
@@ -694,19 +692,19 @@ test("DI - モック依存関係での使用量チェック", async () => {
   };
   
   const mockLogger = {
-    debug: mock(() => {}),
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    log: mock(() => {}),
-    logWithTimestamp: mock(() => {})
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    log: vi.fn(),
+    logWithTimestamp: vi.fn()
   };
   
   const mockDeps = {
-    fetchUsageData: mock(() => Promise.resolve(mockUsageData)),
-    sendNotification: mock(() => Promise.resolve()),
-    readState: mock(() => Promise.resolve({})),
-    saveState: mock(() => Promise.resolve()),
+    fetchUsageData: vi.fn().mockResolvedValue(mockUsageData),
+    sendNotification: vi.fn().mockResolvedValue(undefined),
+    readState: vi.fn().mockResolvedValue({}),
+    saveState: vi.fn().mockResolvedValue(undefined),
     logger: mockLogger
   };
   

@@ -11,9 +11,12 @@
     "build": "bun build src/index.ts --outdir dist --target node --format esm && chmod +x dist/index.js",
     "prepublishOnly": "npm run build",
     "dev": "bun --hot src/index.ts",
-    "test": "bun test src/index.test.ts",
-    "test:e2e": "bun test src/e2e.test.ts",
-    "test:all": "bun test src/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:all": "vitest run && vitest run --config vitest.e2e.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": ["claude", "claude-code", "usage", "monitor", "slack", "notification", "cost", "threshold", "daemon"],
@@ -33,7 +36,9 @@
     "LICENSE"
   ],
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@vitest/ui": "^3.2.4",
+    "vitest": "^3.2.4"
   },
   "peerDependencies": {
     "typescript": "^5"

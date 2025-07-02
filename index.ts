@@ -89,7 +89,7 @@ export function parseArgs(): Config {
   }
 
   const threshold = parseFloat(args[0]);
-  if (isNaN(threshold) || threshold <= 0) {
+  if (isNaN(threshold) || threshold <= 0 || !isFinite(threshold)) {
     console.error("Error: Threshold must be a positive number");
     process.exit(1);
   }

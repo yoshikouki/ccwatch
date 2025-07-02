@@ -1,7 +1,9 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 
 interface MonthlyUsage {
   month: string;
@@ -37,10 +39,10 @@ let isShuttingDown = false;
 let intervalId: Timer | null = null;
 
 export function showHelp(): void {
-  console.log(`ccmonitor - Claude Code usage monitor with Slack notifications
+  console.log(`claude-cost-watch - Claude Code usage monitor with Slack notifications
 
 USAGE:
-  ccmonitor <threshold> [OPTIONS]
+  claude-cost-watch <threshold> [OPTIONS]
 
 ARGUMENTS:
   <threshold>           Dollar amount threshold (e.g., 33 for $33)
@@ -51,12 +53,12 @@ OPTIONS:
   --interval <sec>     Check interval in seconds (default: 3600)
 
 EXAMPLES:
-  ccmonitor 33                              # Check once with $33 threshold
-  ccmonitor 50 --daemon                     # Monitor continuously every hour
-  ccmonitor 33 --daemon --interval 1800     # Monitor every 30 minutes
+  claude-cost-watch 33                              # Check once with $33 threshold
+  claude-cost-watch 50 --daemon                     # Monitor continuously every hour
+  claude-cost-watch 33 --daemon --interval 1800     # Monitor every 30 minutes
   
   # Background execution:
-  nohup ccmonitor 33 --daemon > ccmonitor.log 2>&1 &
+  nohup claude-cost-watch 33 --daemon > claude-cost-watch.log 2>&1 &
 
 ENVIRONMENT VARIABLES:
   CCMONITOR_SLACK_WEBHOOK_URL    Slack webhook URL for notifications (optional)
@@ -117,8 +119,8 @@ export function parseArgs(): Config {
 
 async function getCCUsageData(): Promise<CCUsageData> {
   try {
-    const result = await Bun.$`bunx ccusage monthly --json`.quiet();
-    return JSON.parse(result.stdout.toString());
+    const result = execSync('npx ccusage monthly --json', { encoding: 'utf8' });
+    return JSON.parse(result);
   } catch (error) {
     console.error("Error getting ccusage data:", error);
     throw error;
@@ -139,7 +141,7 @@ export async function sendSlackNotification(message: string, webhookUrl: string)
       },
       body: JSON.stringify({
         text: message,
-        username: 'ccmonitor',
+        username: 'claude-cost-watch',
         icon_emoji: ':warning:',
       }),
     });
@@ -181,7 +183,7 @@ async function loadDaemonState(): Promise<DaemonState> {
   }
 
   try {
-    const data = await Bun.file(stateFile).text();
+    const data = readFileSync(stateFile, 'utf8');
     return JSON.parse(data);
   } catch (error) {
     logWithTimestamp(`状態ファイル読み込みエラー: ${error}`);
@@ -193,7 +195,7 @@ async function saveDaemonState(state: DaemonState): Promise<void> {
   const stateFile = getStateFilePath();
   
   try {
-    await Bun.write(stateFile, JSON.stringify(state, null, 2));
+    writeFileSync(stateFile, JSON.stringify(state, null, 2));
   } catch (error) {
     logWithTimestamp(`状態ファイル保存エラー: ${error}`);
   }
@@ -234,7 +236,7 @@ async function setupGracefulShutdown(): Promise<void> {
     if (isShuttingDown) return;
     isShuttingDown = true;
     
-    logWithTimestamp("🛑 ccmonitor daemon stopping...");
+    logWithTimestamp("🛑 claude-cost-watch daemon stopping...");
     
     if (intervalId) {
       clearInterval(intervalId);
@@ -302,7 +304,7 @@ async function checkUsageOnce(config: Config, state: DaemonState): Promise<Daemo
 }
 
 async function runDaemon(config: Config): Promise<void> {
-  logWithTimestamp(`🤖 ccmonitor daemon started (閾値: $${config.threshold}, 間隔: ${config.interval}秒)`);
+  logWithTimestamp(`🤖 claude-cost-watch daemon started (閾値: $${config.threshold}, 間隔: ${config.interval}秒)`);
   
   await setupGracefulShutdown();
   

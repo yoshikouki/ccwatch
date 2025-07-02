@@ -1,21 +1,35 @@
 {
-  "name": "ccmonitor",
+  "name": "claude-cost-watch",
   "version": "1.0.0",
   "description": "Claude Code usage monitor with Slack notifications",
   "module": "index.ts",
   "type": "module",
   "bin": {
-    "ccmonitor": "./dist/index.js"
+    "claude-cost-watch": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun build index.ts --outdir dist --target node",
+    "build": "bun build index.ts --outdir dist --target node --format esm && chmod +x dist/index.js",
+    "prepublishOnly": "npm run build",
     "dev": "bun --hot index.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["claude", "usage", "monitor", "slack", "notification"],
+  "keywords": ["claude", "claude-code", "usage", "monitor", "slack", "notification", "cost", "threshold", "daemon"],
   "author": "yoshikouki",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yoshikouki/ccmonitor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yoshikouki/ccmonitor/issues"
+  },
+  "homepage": "https://github.com/yoshikouki/ccmonitor#readme",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "devDependencies": {
     "@types/bun": "latest"
   },

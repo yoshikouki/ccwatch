@@ -680,3 +680,63 @@ test("バリデーション - 有効なSlack URL", async () => {
     delete process.env.CCMONITOR_SLACK_WEBHOOK_URL;
   }
 });
+
+// DI（Dependency Injection）のテスト
+test("DI - モック依存関係での使用量チェック", async () => {
+  const mockUsageData = {
+    monthly: [{
+      month: "2025-07",
+      totalCost: 50,
+      modelsUsed: ["claude-sonnet-4-20250514"],
+      modelBreakdowns: []
+    }],
+    totals: { totalCost: 50 }
+  };
+  
+  const mockLogger = {
+    log: mock(() => {}),
+    error: mock(() => {}),
+    logWithTimestamp: mock(() => {})
+  };
+  
+  const mockDeps = {
+    fetchUsageData: mock(() => Promise.resolve(mockUsageData)),
+    sendNotification: mock(() => Promise.resolve()),
+    readState: mock(() => Promise.resolve({})),
+    saveState: mock(() => Promise.resolve()),
+    logger: mockLogger
+  };
+  
+  const config = {
+    threshold: 40,
+    slackWebhookUrl: "https://hooks.slack.com/test",
+    checkCurrentMonth: true,
+    daemon: false,
+    interval: 3600
+  };
+  
+  const { checkUsageOnce } = await import("./index.ts");
+  // @ts-ignore - テスト用の内部関数アクセス
+  const newState = await checkUsageOnce(config, {}, mockDeps);
+  
+  expect(mockDeps.fetchUsageData).toHaveBeenCalledTimes(1);
+  expect(mockDeps.sendNotification).toHaveBeenCalledTimes(1);
+  expect(mockLogger.logWithTimestamp).toHaveBeenCalled();
+});
+
+// 型安全性のテスト
+test("型安全性 - readonlyプロパティの検証", async () => {
+  const { formatCostMessage } = await import("./index.ts");
+  
+  const usage = {
+    month: "2025-07",
+    totalCost: 45.67,
+    modelsUsed: ["claude-sonnet-4-20250514"],
+    modelBreakdowns: []
+  } as const; // readonly化
+  
+  const message = formatCostMessage(usage, 33);
+  
+  expect(message).toContain("$45.67");
+  expect(message).toContain("claude-sonnet-4-20250514");
+});

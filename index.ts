@@ -6,49 +6,91 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 interface MonthlyUsage {
-  month: string;
-  totalCost: number;
-  modelsUsed: string[];
-  modelBreakdowns: Array<{
-    modelName: string;
-    cost: number;
-  }>;
+  readonly month: string;
+  readonly totalCost: number;
+  readonly modelsUsed: readonly string[];
+  readonly modelBreakdowns: readonly {
+    readonly modelName: string;
+    readonly cost: number;
+  }[];
 }
 
 interface CCUsageData {
-  monthly: MonthlyUsage[];
-  totals: {
-    totalCost: number;
+  readonly monthly: readonly MonthlyUsage[];
+  readonly totals: {
+    readonly totalCost: number;
   };
 }
 
 interface Config {
-  threshold: number;
-  slackWebhookUrl?: string;
-  checkCurrentMonth?: boolean;
-  daemon?: boolean;
-  interval?: number;
+  readonly threshold: number;
+  readonly slackWebhookUrl?: string;
+  readonly checkCurrentMonth?: boolean;
+  readonly daemon?: boolean;
+  readonly interval?: number;
 }
 
 interface ValidationError {
-  field: string;
-  value: any;
-  message: string;
+  readonly field: string;
+  readonly value: unknown;
+  readonly message: string;
 }
 
 class ConfigValidationError extends Error {
-  constructor(public errors: ValidationError[]) {
+  constructor(public readonly errors: readonly ValidationError[]) {
     super(`Configuration validation failed: ${errors.map(e => e.message).join(', ')}`);
     this.name = 'ConfigValidationError';
   }
 }
 
-interface DaemonState {
-  lastNotificationDate?: string;
-  lastExceedanceDate?: string;
+// 外部依存の抽象化（DI対応）
+interface Dependencies {
+  readonly fetchUsageData: () => Promise<CCUsageData>;
+  readonly sendNotification: (message: string, webhookUrl: string) => Promise<void>;
+  readonly readState: () => Promise<DaemonState>;
+  readonly saveState: (state: DaemonState) => Promise<void>;
+  readonly logger: Logger;
 }
 
-let isShuttingDown = false;
+interface Logger {
+  readonly log: (message: string) => void;
+  readonly error: (message: string, error?: unknown) => void;
+  readonly logWithTimestamp: (message: string) => void;
+}
+
+class DefaultLogger implements Logger {
+  log(message: string): void {
+    console.log(message);
+  }
+  
+  error(message: string, error?: unknown): void {
+    console.error(message, error);
+  }
+  
+  logWithTimestamp(message: string): void {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${message}`);
+  }
+}
+
+function createDefaultDependencies(): Dependencies {
+  const logger = new DefaultLogger();
+  
+  return {
+    fetchUsageData: getCCUsageData,
+    sendNotification: sendSlackNotification,
+    readState: loadDaemonState,
+    saveState: saveDaemonState,
+    logger
+  };
+}
+
+interface DaemonState {
+  readonly lastNotificationDate?: string;
+  readonly lastExceedanceDate?: string;
+}
+
+let isShuttingDown: boolean = false;
 let intervalId: Timer | null = null;
 
 export function showHelp(): void {
@@ -205,6 +247,8 @@ function validateSlackWebhookUrl(url: string): ValidationError | null {
   return null;
 }
 
+export { checkUsageOnce };
+
 export function parseArgs(): Config {
   const args = process.argv.slice(2);
   
@@ -264,7 +308,7 @@ export function parseArgs(): Config {
 async function getCCUsageData(): Promise<CCUsageData> {
   try {
     const result = execSync('npx ccusage monthly --json', { encoding: 'utf8' });
-    return JSON.parse(result);
+    return JSON.parse(result) as CCUsageData;
   } catch (error) {
     console.error("Error getting ccusage data:", error);
     throw error;
@@ -328,7 +372,7 @@ async function loadDaemonState(): Promise<DaemonState> {
 
   try {
     const data = readFileSync(stateFile, 'utf8');
-    return JSON.parse(data);
+    return JSON.parse(data) as DaemonState;
   } catch (error) {
     logWithTimestamp(`状態ファイル読み込みエラー: ${error}`);
     return {};
@@ -346,8 +390,8 @@ async function saveDaemonState(state: DaemonState): Promise<void> {
 }
 
 function logWithTimestamp(message: string): void {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${message}`);
+  const defaultLogger = new DefaultLogger();
+  defaultLogger.logWithTimestamp(message);
 }
 
 function getToday(): string {
@@ -395,9 +439,11 @@ async function setupGracefulShutdown(): Promise<void> {
   process.on('SIGQUIT', shutdown);
 }
 
-async function checkUsageOnce(config: Config, state: DaemonState): Promise<DaemonState> {
+async function checkUsageOnce(config: Config, state: DaemonState, deps?: Dependencies): Promise<DaemonState> {
+  const dependencies = deps || createDefaultDependencies();
+  
   try {
-    const usageData = await getCCUsageData();
+    const usageData = await dependencies.fetchUsageData();
     const currentMonth = getCurrentMonth();
     
     const currentMonthUsage = usageData.monthly.find(
@@ -405,14 +451,14 @@ async function checkUsageOnce(config: Config, state: DaemonState): Promise<Daemo
     );
     
     if (!currentMonthUsage) {
-      logWithTimestamp(`📊 ${currentMonth}の使用データが見つかりません`);
+      dependencies.logger.logWithTimestamp(`📊 ${currentMonth}の使用データが見つかりません`);
       return state;
     }
     
     const currentCost = currentMonthUsage.totalCost;
     const exceeded = currentCost > config.threshold;
     
-    logWithTimestamp(`📊 ${currentMonth}の現在のコスト: $${currentCost.toFixed(2)} (閾値: $${config.threshold})`);
+    dependencies.logger.logWithTimestamp(`📊 ${currentMonth}の現在のコスト: $${currentCost.toFixed(2)} (閾値: $${config.threshold})`);
     
     const newState = { ...state };
     
@@ -421,49 +467,51 @@ async function checkUsageOnce(config: Config, state: DaemonState): Promise<Daemo
       newState.lastExceedanceDate = today;
       
       const excess = currentCost - config.threshold;
-      logWithTimestamp(`🚨 閾値超過！ 超過額: $${excess.toFixed(2)}`);
+      dependencies.logger.logWithTimestamp(`🚨 閾値超過！ 超過額: $${excess.toFixed(2)}`);
       
       if (shouldSendNotification(state, exceeded)) {
         if (config.slackWebhookUrl) {
           const message = formatCostMessage(currentMonthUsage, config.threshold);
-          await sendSlackNotification(message, config.slackWebhookUrl);
-          logWithTimestamp("✅ Slack通知を送信しました");
+          await dependencies.sendNotification(message, config.slackWebhookUrl);
+          dependencies.logger.logWithTimestamp("✅ Slack通知を送信しました");
           newState.lastNotificationDate = today;
         } else {
-          logWithTimestamp("⚠️ CCMONITOR_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
+          dependencies.logger.logWithTimestamp("⚠️ CCMONITOR_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");
         }
       } else {
-        logWithTimestamp("📤 本日は既に通知済みのため、Slack通知をスキップします");
+        dependencies.logger.logWithTimestamp("📤 本日は既に通知済みのため、Slack通知をスキップします");
       }
     } else {
       const remaining = config.threshold - currentCost;
-      logWithTimestamp(`✅ 現在は閾値内です (残り: $${remaining.toFixed(2)})`);
+      dependencies.logger.logWithTimestamp(`✅ 現在は閾値内です (残り: $${remaining.toFixed(2)})`);
     }
     
     return newState;
   } catch (error) {
-    logWithTimestamp(`❌ チェック中にエラーが発生しました: ${error}`);
+    dependencies.logger.logWithTimestamp(`❌ チェック中にエラーが発生しました: ${error}`);
     return state;
   }
 }
 
-async function runDaemon(config: Config): Promise<void> {
-  logWithTimestamp(`🤖 ccwatch daemon started (閾値: $${config.threshold}, 間隔: ${config.interval}秒)`);
+async function runDaemon(config: Config, deps?: Dependencies): Promise<void> {
+  const dependencies = deps || createDefaultDependencies();
+  
+  dependencies.logger.logWithTimestamp(`🤖 ccwatch daemon started (閾値: $${config.threshold}, 間隔: ${config.interval}秒)`);
   
   await setupGracefulShutdown();
   
-  let state = await loadDaemonState();
+  let state = await dependencies.readState();
   
   // 初回実行
-  state = await checkUsageOnce(config, state);
-  await saveDaemonState(state);
+  state = await checkUsageOnce(config, state, dependencies);
+  await dependencies.saveState(state);
   
   // 定期実行
   intervalId = setInterval(async () => {
     if (isShuttingDown) return;
     
-    state = await checkUsageOnce(config, state);
-    await saveDaemonState(state);
+    state = await checkUsageOnce(config, state, dependencies);
+    await dependencies.saveState(state);
   }, config.interval! * 1000);
   
   // プロセスを維持

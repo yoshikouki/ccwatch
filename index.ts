@@ -368,7 +368,7 @@ export function parseArgs(): Config {
     process.exit(1);
   }
 
-  const threshold = parseFloat(args[0]);
+  const threshold = parseFloat(args[0]!);
   const thresholdValidation = validateThreshold(threshold);
   if (thresholdValidation) {
     console.error(`Error: ${thresholdValidation.message}`);
@@ -380,7 +380,7 @@ export function parseArgs(): Config {
 
   const intervalIndex = args.indexOf('--interval');
   if (intervalIndex !== -1 && intervalIndex + 1 < args.length) {
-    const intervalValue = parseInt(args[intervalIndex + 1]);
+    const intervalValue = parseInt(args[intervalIndex + 1]!);
     const intervalValidation = validateInterval(intervalValue);
     if (intervalValidation) {
       console.error(`Error: ${intervalValidation.message}`);
@@ -501,7 +501,7 @@ function logWithTimestamp(message: string): void {
 }
 
 function getToday(): string {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toISOString().split('T')[0]!;
 }
 
 function shouldSendNotification(state: DaemonState, exceeded: boolean): boolean {
@@ -579,7 +579,7 @@ async function checkUsageOnce(config: Config, state: DaemonState, deps?: Depende
     
     if (exceeded) {
       const today = getToday();
-      newState.lastExceedanceDate = today;
+      (newState as any).lastExceedanceDate = today;
       
       const excess = currentCost - config.threshold;
       dependencies.logger.error(`閾値超過`, {
@@ -593,12 +593,12 @@ async function checkUsageOnce(config: Config, state: DaemonState, deps?: Depende
       if (shouldSendNotification(state, exceeded)) {
         if (config.slackWebhookUrl) {
           const message = formatCostMessage(currentMonthUsage, config.threshold);
-          await dependencies.sendNotification(message, config.slackWebhookUrl);
+          await dependencies.sendNotification(message, config.slackWebhookUrl!);
           dependencies.logger.info("Slack通知を送信しました", {
             webhookUrl: config.slackWebhookUrl?.substring(0, 30) + '...',
             component: 'notification'
           });
-          newState.lastNotificationDate = today;
+          (newState as any).lastNotificationDate = today;
         } else {
           dependencies.logger.warn("Slack通知をスキップ: 環境変数未設定", {
             reason: 'CCMONITOR_SLACK_WEBHOOK_URL not set',
@@ -695,7 +695,7 @@ async function main(): Promise<void> {
         
         if (config.slackWebhookUrl) {
           const message = formatCostMessage(currentMonthUsage, config.threshold);
-          await sendSlackNotification(message, config.slackWebhookUrl);
+          await sendSlackNotification(message, config.slackWebhookUrl!);
           console.log("✅ Slack通知を送信しました");
         } else {
           console.log("⚠️ CCMONITOR_SLACK_WEBHOOK_URL環境変数が設定されていないため、Slack通知をスキップします");

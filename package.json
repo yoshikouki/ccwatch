@@ -11,7 +11,9 @@
     "build": "bun build index.ts --outdir dist --target node --format esm && chmod +x dist/index.js",
     "prepublishOnly": "npm run build",
     "dev": "bun --hot index.ts",
-    "test": "bun test",
+    "test": "bun test index.test.ts",
+    "test:e2e": "bun test e2e.test.ts",
+    "test:all": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "keywords": ["claude", "claude-code", "usage", "monitor", "slack", "notification", "cost", "threshold", "daemon"],

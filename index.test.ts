@@ -88,3 +88,22 @@ test("CLI引数解析 - カスタムインターバル", async () => {
   
   process.argv = originalArgv;
 });
+
+test("showHelp関数 - ヘルプメッセージ表示", async () => {
+  const originalLog = console.log;
+  let logOutput = "";
+  
+  console.log = (message: string) => { logOutput += message; };
+  
+  const { showHelp } = await import("./index.ts");
+  showHelp();
+  
+  expect(logOutput).toContain("ccmonitor - Claude Code usage monitor");
+  expect(logOutput).toContain("USAGE:");
+  expect(logOutput).toContain("-h, --help");
+  expect(logOutput).toContain("--daemon");
+  expect(logOutput).toContain("EXAMPLES:");
+  expect(logOutput).toContain("ENVIRONMENT VARIABLES:");
+  
+  console.log = originalLog;
+});

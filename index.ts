@@ -36,18 +36,53 @@ interface DaemonState {
 let isShuttingDown = false;
 let intervalId: Timer | null = null;
 
+export function showHelp(): void {
+  console.log(`ccmonitor - Claude Code usage monitor with Slack notifications
+
+USAGE:
+  ccmonitor <threshold> [OPTIONS]
+
+ARGUMENTS:
+  <threshold>           Dollar amount threshold (e.g., 33 for $33)
+
+OPTIONS:
+  -h, --help           Show this help message
+  --daemon             Run in daemon mode (continuous monitoring)
+  --interval <sec>     Check interval in seconds (default: 3600)
+
+EXAMPLES:
+  ccmonitor 33                              # Check once with $33 threshold
+  ccmonitor 50 --daemon                     # Monitor continuously every hour
+  ccmonitor 33 --daemon --interval 1800     # Monitor every 30 minutes
+  
+  # Background execution:
+  nohup ccmonitor 33 --daemon > ccmonitor.log 2>&1 &
+
+ENVIRONMENT VARIABLES:
+  SLACK_WEBHOOK_URL    Slack webhook URL for notifications (optional)
+
+DAEMON MODE FEATURES:
+  • Automatic periodic monitoring
+  • Duplicate notification prevention (once per day)
+  • Graceful shutdown with Ctrl+C
+  • State persistence in ~/.ccmonitor-state.json
+  • Timestamped logging
+
+For more information, visit: https://github.com/yoshikouki/ccmonitor`);
+}
+
 export function parseArgs(): Config {
   const args = process.argv.slice(2);
   
+  // ヘルプオプションのチェック
+  if (args.includes('--help') || args.includes('-h')) {
+    showHelp();
+    process.exit(0);
+  }
+  
   if (args.length === 0) {
-    console.error("Usage: ccmonitor <threshold> [options]");
-    console.error("Example: ccmonitor 33");
-    console.error("Example: ccmonitor 33 --daemon");
-    console.error("Example: ccmonitor 33 --daemon --interval 3600");
-    console.error("");
-    console.error("Options:");
-    console.error("  --daemon          Run in daemon mode (continuous monitoring)");
-    console.error("  --interval <sec>  Check interval in seconds (default: 3600)");
+    console.error("Error: Missing threshold argument\n");
+    showHelp();
     process.exit(1);
   }
 

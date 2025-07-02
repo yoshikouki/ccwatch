@@ -30,6 +30,19 @@ interface Config {
   interval?: number;
 }
 
+interface ValidationError {
+  field: string;
+  value: any;
+  message: string;
+}
+
+class ConfigValidationError extends Error {
+  constructor(public errors: ValidationError[]) {
+    super(`Configuration validation failed: ${errors.map(e => e.message).join(', ')}`);
+    this.name = 'ConfigValidationError';
+  }
+}
+
 interface DaemonState {
   lastNotificationDate?: string;
   lastExceedanceDate?: string;
@@ -73,6 +86,125 @@ DAEMON MODE FEATURES:
 For more information, visit: https://github.com/yoshikouki/ccmonitor`);
 }
 
+function validateThreshold(threshold: number): ValidationError | null {
+  if (isNaN(threshold)) {
+    return {
+      field: 'threshold',
+      value: threshold,
+      message: 'Threshold must be a valid number'
+    };
+  }
+  
+  if (!isFinite(threshold)) {
+    return {
+      field: 'threshold', 
+      value: threshold,
+      message: 'Threshold must be a finite number (not Infinity or -Infinity)'
+    };
+  }
+  
+  if (threshold <= 0) {
+    return {
+      field: 'threshold',
+      value: threshold, 
+      message: 'Threshold must be a positive number greater than 0'
+    };
+  }
+  
+  if (threshold > 1000000) {
+    return {
+      field: 'threshold',
+      value: threshold,
+      message: 'Threshold must be less than $1,000,000 for practical usage'
+    };
+  }
+  
+  return null;
+}
+
+function validateInterval(interval: number): ValidationError | null {
+  if (isNaN(interval)) {
+    return {
+      field: 'interval',
+      value: interval,
+      message: 'Interval must be a valid number'
+    };
+  }
+  
+  if (!isFinite(interval)) {
+    return {
+      field: 'interval',
+      value: interval, 
+      message: 'Interval must be a finite number'
+    };
+  }
+  
+  if (interval <= 0) {
+    return {
+      field: 'interval',
+      value: interval,
+      message: 'Interval must be a positive number greater than 0'
+    };
+  }
+  
+  if (interval < 10) {
+    return {
+      field: 'interval',
+      value: interval,
+      message: 'Interval must be at least 10 seconds to avoid excessive API calls'
+    };
+  }
+  
+  if (interval > 86400) {
+    return {
+      field: 'interval', 
+      value: interval,
+      message: 'Interval must be less than 24 hours (86400 seconds)'
+    };
+  }
+  
+  return null;
+}
+
+function validateSlackWebhookUrl(url: string): ValidationError | null {
+  if (!url || url.trim() === '') {
+    return {
+      field: 'slackWebhookUrl',
+      value: url,
+      message: 'Slack webhook URL cannot be empty'
+    };
+  }
+  
+  try {
+    const urlObj = new URL(url);
+    
+    if (!urlObj.protocol.startsWith('http')) {
+      return {
+        field: 'slackWebhookUrl',
+        value: url,
+        message: 'Slack webhook URL must use HTTP or HTTPS protocol'
+      };
+    }
+    
+    if (!urlObj.hostname.includes('hooks.slack.com')) {
+      return {
+        field: 'slackWebhookUrl',
+        value: url,
+        message: 'URL must be a valid Slack webhook URL (hooks.slack.com)'
+      };
+    }
+    
+  } catch (error) {
+    return {
+      field: 'slackWebhookUrl',
+      value: url,
+      message: 'Slack webhook URL format is invalid'
+    };
+  }
+  
+  return null;
+}
+
 export function parseArgs(): Config {
   const args = process.argv.slice(2);
   
@@ -89,8 +221,9 @@ export function parseArgs(): Config {
   }
 
   const threshold = parseFloat(args[0]);
-  if (isNaN(threshold) || threshold <= 0 || !isFinite(threshold)) {
-    console.error("Error: Threshold must be a positive number");
+  const thresholdValidation = validateThreshold(threshold);
+  if (thresholdValidation) {
+    console.error(`Error: ${thresholdValidation.message}`);
     process.exit(1);
   }
 
@@ -100,21 +233,32 @@ export function parseArgs(): Config {
   const intervalIndex = args.indexOf('--interval');
   if (intervalIndex !== -1 && intervalIndex + 1 < args.length) {
     const intervalValue = parseInt(args[intervalIndex + 1]);
-    if (!isNaN(intervalValue) && intervalValue > 0) {
-      interval = intervalValue;
-    } else {
-      console.error("Error: Interval must be a positive number");
+    const intervalValidation = validateInterval(intervalValue);
+    if (intervalValidation) {
+      console.error(`Error: ${intervalValidation.message}`);
       process.exit(1);
     }
+    interval = intervalValue;
   }
 
-  return {
+  const config = {
     threshold,
     slackWebhookUrl: process.env.CCMONITOR_SLACK_WEBHOOK_URL,
     checkCurrentMonth: true,
     daemon,
     interval,
   };
+
+  // Slack Webhook URLの事前検証
+  if (config.slackWebhookUrl) {
+    const urlValidation = validateSlackWebhookUrl(config.slackWebhookUrl);
+    if (urlValidation) {
+      console.error(`Error: ${urlValidation.message}`);
+      process.exit(1);
+    }
+  }
+
+  return config;
 }
 
 async function getCCUsageData(): Promise<CCUsageData> {

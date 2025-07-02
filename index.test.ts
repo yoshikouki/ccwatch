@@ -148,7 +148,7 @@ test("CLI引数解析 - 文字列閾値エラー", async () => {
   parseArgs();
   
   expect(exitCode).toBe(1);
-  expect(errorOutput).toContain("positive number");
+  expect(errorOutput).toContain("valid number");
   
   process.argv = originalArgv;
   process.exit = originalExit;
@@ -194,7 +194,7 @@ test("CLI引数解析 - 無効なインターバル", async () => {
   parseArgs();
   
   expect(exitCode).toBe(1);
-  expect(errorOutput).toContain("Interval must be a positive number");
+  expect(errorOutput).toContain("valid number");
   
   process.argv = originalArgv;
   process.exit = originalExit;
@@ -382,7 +382,7 @@ test("CLI引数解析 - 無限大", async () => {
   parseArgs();
   
   expect(exitCode).toBe(1);
-  expect(errorOutput).toContain("positive number");
+  expect(errorOutput).toContain("finite number");
   
   process.argv = originalArgv;
   process.exit = originalExit;
@@ -405,7 +405,7 @@ test("CLI引数解析 - NaN文字列", async () => {
   parseArgs();
   
   expect(exitCode).toBe(1);
-  expect(errorOutput).toContain("positive number");
+  expect(errorOutput).toContain("valid number");
   
   process.argv = originalArgv;
   process.exit = originalExit;
@@ -558,4 +558,125 @@ test("formatCostMessage - モデル名なし", async () => {
   
   expect(message).toContain("使用モデル: ");
   expect(message).not.toContain("undefined");
+});
+
+// バリデーション機能のテスト
+test("バリデーション - 閾値が大きすぎる", async () => {
+  const originalArgv = process.argv;
+  const originalExit = process.exit;
+  const originalError = console.error;
+  
+  let exitCode = -1;
+  let errorOutput = "";
+  
+  process.exit = ((code: number) => { exitCode = code; }) as any;
+  console.error = (message: string) => { errorOutput += message; };
+  process.argv = ["bun", "index.ts", "2000000"];
+  
+  const { parseArgs } = await import("./index.ts");
+  parseArgs();
+  
+  expect(exitCode).toBe(1);
+  expect(errorOutput).toContain("less than $1,000,000");
+  
+  process.argv = originalArgv;
+  process.exit = originalExit;
+  console.error = originalError;
+});
+
+test("バリデーション - インターバルが短すぎる", async () => {
+  const originalArgv = process.argv;
+  const originalExit = process.exit;
+  const originalError = console.error;
+  
+  let exitCode = -1;
+  let errorOutput = "";
+  
+  process.exit = ((code: number) => { exitCode = code; }) as any;
+  console.error = (message: string) => { errorOutput += message; };
+  process.argv = ["bun", "index.ts", "33", "--daemon", "--interval", "5"];
+  
+  const { parseArgs } = await import("./index.ts");
+  parseArgs();
+  
+  expect(exitCode).toBe(1);
+  expect(errorOutput).toContain("at least 10 seconds");
+  
+  process.argv = originalArgv;
+  process.exit = originalExit;
+  console.error = originalError;
+});
+
+test("バリデーション - インターバルが長すぎる", async () => {
+  const originalArgv = process.argv;
+  const originalExit = process.exit;
+  const originalError = console.error;
+  
+  let exitCode = -1;
+  let errorOutput = "";
+  
+  process.exit = ((code: number) => { exitCode = code; }) as any;
+  console.error = (message: string) => { errorOutput += message; };
+  process.argv = ["bun", "index.ts", "33", "--daemon", "--interval", "100000"];
+  
+  const { parseArgs } = await import("./index.ts");
+  parseArgs();
+  
+  expect(exitCode).toBe(1);
+  expect(errorOutput).toContain("less than 24 hours");
+  
+  process.argv = originalArgv;
+  process.exit = originalExit;
+  console.error = originalError;
+});
+
+test("バリデーション - 不正なSlack URL", async () => {
+  const originalArgv = process.argv;
+  const originalExit = process.exit;
+  const originalError = console.error;
+  const originalEnv = process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+  
+  let exitCode = -1;
+  let errorOutput = "";
+  
+  process.exit = ((code: number) => { exitCode = code; }) as any;
+  console.error = (message: string) => { errorOutput += message; };
+  process.env.CCMONITOR_SLACK_WEBHOOK_URL = "https://example.com/invalid";
+  process.argv = ["bun", "index.ts", "33"];
+  
+  const { parseArgs } = await import("./index.ts");
+  parseArgs();
+  
+  expect(exitCode).toBe(1);
+  expect(errorOutput).toContain("valid Slack webhook URL");
+  
+  process.argv = originalArgv;
+  process.exit = originalExit;
+  console.error = originalError;
+  if (originalEnv) {
+    process.env.CCMONITOR_SLACK_WEBHOOK_URL = originalEnv;
+  } else {
+    delete process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+  }
+});
+
+test("バリデーション - 有効なSlack URL", async () => {
+  const originalArgv = process.argv;
+  const originalEnv = process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+  
+  process.env.CCMONITOR_SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX";
+  process.argv = ["bun", "index.ts", "33"];
+  
+  const { parseArgs } = await import("./index.ts");
+  const config = parseArgs();
+  
+  expect(config.threshold).toBe(33);
+  expect(config.slackWebhookUrl).toContain("hooks.slack.com");
+  
+  process.argv = originalArgv;
+  if (originalEnv) {
+    process.env.CCMONITOR_SLACK_WEBHOOK_URL = originalEnv;
+  } else {
+    delete process.env.CCMONITOR_SLACK_WEBHOOK_URL;
+  }
 });

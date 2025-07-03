@@ -121,8 +121,12 @@ export class DaemonCommand extends BaseCommand<DaemonInput, DaemonOutput> {
   }
 
   // テスト用のメソッド
-  public forceShutdown(): void {
+  public forceShutdown(): boolean {
+    if (this.isShuttingDown) {
+      return false; // 既にシャットダウン中
+    }
     this.isShuttingDown = true;
     this.cleanup();
+    return true; // シャットダウン実行成功
   }
 }

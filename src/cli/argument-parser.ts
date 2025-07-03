@@ -11,11 +11,11 @@ export class ArgumentParser {
         return ResultUtils.failure(new Error("HELP_REQUESTED"));
       }
 
-      // 闾値を見つける（フラグでない最初の引数）
+      // 闾値を見つける（フラグでない最初の引数、または負の数値）
       let threshold: number | undefined;
       let thresholdArg: string | undefined;
       for (const arg of args) {
-        if (!arg.startsWith('-')) {
+        if (!arg.startsWith('-') || /^-?\d+(\.\d+)?$/.test(arg)) {
           thresholdArg = arg;
           const parsed = parseFloat(arg);
           if (!isNaN(parsed)) {

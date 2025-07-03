@@ -364,7 +364,7 @@ describe("ArgumentParser", () => {
       expect(ResultUtils.isFailure(result)).toBe(true);
       if (ResultUtils.isFailure(result)) {
         // 複数のエラーメッセージが含まれることを確認
-        expect(result.error.message).toContain("greater than 0");
+        expect(result.error.message).toContain("Threshold must be greater than 0");
         expect(result.error.message).toContain("at least 10 seconds");
         expect(result.error.message).toContain("Invalid Slack webhook URL");
       }

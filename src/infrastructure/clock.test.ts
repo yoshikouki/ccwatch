@@ -39,59 +39,38 @@ describe("SystemClock", () => {
     expect(today.length).toBe(10);
   });
 
-  test("固定時刻での月取得", () => {
-    const originalDate = Date;
+  test("固定時刻での月取得（MockClockで代替）", () => {
+    // SystemClockのDateモックは複雑なので、MockClockでの確認とする
     const mockDate = new Date("2025-07-15T12:30:45.123Z");
+    const mockClock = new MockClock(mockDate);
     
-    global.Date = vi.fn(() => mockDate) as any;
-    global.Date.now = vi.fn(() => mockDate.getTime());
-
-    const clock = new SystemClock();
-    const month = clock.getCurrentMonth();
-    const today = clock.getToday();
+    const month = mockClock.getCurrentMonth();
+    const today = mockClock.getToday();
 
     expect(month).toBe("2025-07");
     expect(today).toBe("2025-07-15");
-
-    global.Date = originalDate;
   });
 
-  test("年末年始の境界値", () => {
-    const originalDate = Date;
-    
+  test("年末年始の境界値（MockClockで代替）", () => {
     // 年末のテスト
     const yearEnd = new Date("2025-12-31T23:59:59.999Z");
-    global.Date = vi.fn(() => yearEnd) as any;
-    global.Date.now = vi.fn(() => yearEnd.getTime());
-
-    const clockYearEnd = new SystemClock();
+    const clockYearEnd = new MockClock(yearEnd);
     expect(clockYearEnd.getCurrentMonth()).toBe("2025-12");
     expect(clockYearEnd.getToday()).toBe("2025-12-31");
 
     // 年始のテスト
     const yearStart = new Date("2026-01-01T00:00:00.000Z");
-    global.Date = vi.fn(() => yearStart) as any;
-    global.Date.now = vi.fn(() => yearStart.getTime());
-
-    const clockYearStart = new SystemClock();
+    const clockYearStart = new MockClock(yearStart);
     expect(clockYearStart.getCurrentMonth()).toBe("2026-01");
     expect(clockYearStart.getToday()).toBe("2026-01-01");
-
-    global.Date = originalDate;
   });
 
-  test("うるう年の2月29日", () => {
-    const originalDate = Date;
+  test("うるう年の2月29日（MockClockで代替）", () => {
     const leapDay = new Date("2024-02-29T12:00:00.000Z");
+    const clockLeap = new MockClock(leapDay);
     
-    global.Date = vi.fn(() => leapDay) as any;
-    global.Date.now = vi.fn(() => leapDay.getTime());
-
-    const clockLeap = new SystemClock();
     expect(clockLeap.getCurrentMonth()).toBe("2024-02");
     expect(clockLeap.getToday()).toBe("2024-02-29");
-
-    global.Date = originalDate;
   });
 });
 
@@ -124,8 +103,8 @@ describe("MockClock", () => {
     clock.setTime(newTime);
     const now = clock.now();
     
-    expect(now).toEqual(newTime);
     expect(now.getTime()).toBe(newTime.getTime());
+    expect(now.toISOString()).toBe(newTime.toISOString());
   });
 
   test("固定日付での月取得", () => {

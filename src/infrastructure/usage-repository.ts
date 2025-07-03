@@ -34,7 +34,7 @@ export class MockUsageRepository implements UsageDataRepository {
   constructor(private mockData: CCUsageData) {}
 
   async fetchUsageData(): Promise<CCUsageData> {
-    return { ...this.mockData };
+    return JSON.parse(JSON.stringify(this.mockData));
   }
 
   setMockData(data: CCUsageData): void {

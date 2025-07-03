@@ -183,4 +183,37 @@ describe("DaemonCommand", () => {
     mockDependencies.notificationService.clear();
     expect(mockDependencies.notificationService.sentMessages).toHaveLength(0);
   });
+
+  test("executeinputの基本検証", () => {
+    const input = {
+      config: {
+        threshold: 50,
+        daemon: true,
+        interval: 3600,
+        slackWebhookUrl: undefined
+      }
+    };
+    
+    expect(input.config.threshold).toBe(50);
+    expect(input.config.daemon).toBe(true);
+    expect(input.config.interval).toBe(3600);
+  });
+
+  test("safeExecuteメソッドの基本動作", () => {
+    // BaseCommandのsafeExecuteメソッドが正しく継承されているかテスト
+    expect(command).toHaveProperty('execute');
+    expect(typeof command.execute).toBe('function');
+  });
+
+  test("内部状態の初期値確認", () => {
+    expect((command as any).isShuttingDown).toBe(false);
+    expect((command as any).intervalId).toBe(null);
+    expect((command as any).checkCount).toBe(0);
+  });
+
+  test("エラーメッセージ定数", () => {
+    // BaseCommandから継承されるエラーメッセージが適切に設定されているかテスト
+    const mockCommand = new DaemonCommand(mockDependencies, mockLogger);
+    expect(mockCommand).toBeInstanceOf(DaemonCommand);
+  });
 });

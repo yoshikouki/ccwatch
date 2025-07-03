@@ -68,8 +68,20 @@ export class CCUsageRepository implements UsageDataRepository {
   }
 
   protected async executeCommand(): Promise<string> {
-    const { $ } = await import("bun");
-    return await $`ccusage --format json`.text();
+    // Node.js互換性のためchild_processを使用
+    const { execSync } = await import("child_process");
+    try {
+      const result = execSync("ccusage --format json", {
+        encoding: "utf8",
+        maxBuffer: this.MAX_DATA_SIZE
+      });
+      return result;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
+    }
   }
 }
 

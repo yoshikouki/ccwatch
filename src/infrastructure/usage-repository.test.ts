@@ -14,7 +14,7 @@ class TestableUsageRepository extends CCUsageRepository {
   }
 
   // テスト用にコマンド実行部分をオーバーライド
-  protected async executeCommand(): Promise<string> {
+  protected override async executeCommand(): Promise<string> {
     if (this.mockCommand) {
       return this.mockCommand();
     }

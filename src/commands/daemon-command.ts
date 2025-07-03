@@ -3,6 +3,7 @@ import { CheckUsageCommand } from "./check-usage-command.ts";
 import type { CheckUsageDependencies } from "./check-usage-command.ts";
 import type { Config, Result, DaemonState, Logger } from "../core/interfaces.ts";
 import { ResultUtils } from "../utils/result.ts";
+import { FileProcessManager, type ProcessManager } from "../infrastructure/process-manager.ts";
 
 export interface DaemonInput {
   config: Config;
@@ -17,22 +18,32 @@ export class DaemonCommand extends BaseCommand<DaemonInput, DaemonOutput> {
   private isShuttingDown = false;
   private intervalId: Timer | null = null;
   private checkCount = 0;
+  private processManager: ProcessManager;
 
   constructor(
     private dependencies: CheckUsageDependencies,
-    private logger: Logger
+    private logger: Logger,
+    processManager?: ProcessManager
   ) {
     super();
+    this.processManager = processManager || new FileProcessManager(logger);
   }
 
   async execute(input: DaemonInput): Promise<Result<DaemonOutput>> {
     return this.safeExecute(async () => {
       const { config } = input;
       
+      // プロセス重複実行防止
+      const lockAcquired = await this.processManager.acquireLock('daemon');
+      if (!lockAcquired) {
+        throw new Error("別のccwatchデーモンプロセスが既に実行中です。重複実行はセキュリティ上禁止されています。");
+      }
+
       this.logger.info("ccwatch daemon starting", { 
         threshold: config.threshold,
         interval: config.interval,
-        component: 'daemon' 
+        component: 'daemon',
+        pid: process.pid
       });
 
       // 初期状態読み込み
@@ -71,7 +82,7 @@ export class DaemonCommand extends BaseCommand<DaemonInput, DaemonOutput> {
     return new Promise((resolve, reject) => {
       this.intervalId = setInterval(async () => {
         if (this.isShuttingDown) {
-          this.cleanup();
+          await this.cleanup();
           resolve();
           return;
         }
@@ -117,12 +128,12 @@ export class DaemonCommand extends BaseCommand<DaemonInput, DaemonOutput> {
   }
 
   private async setupGracefulShutdown(): Promise<void> {
-    const shutdown = () => {
+    const shutdown = async () => {
       if (this.isShuttingDown) return;
       this.isShuttingDown = true;
       
       this.logger.info("ccwatch daemon stopping", { component: 'daemon' });
-      this.cleanup();
+      await this.cleanup();
       process.exit(0);
     };
 
@@ -130,10 +141,21 @@ export class DaemonCommand extends BaseCommand<DaemonInput, DaemonOutput> {
     process.on('SIGTERM', shutdown);
   }
 
-  private cleanup(): void {
+  private async cleanup(): Promise<void> {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
+    }
+    
+    // プロセスマネージャーのクリーンアップ
+    try {
+      await this.processManager.cleanup();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.warn("プロセスマネージャークリーンアップ警告", {
+        component: 'daemon',
+        error: errorMessage
+      });
     }
   }
 
@@ -143,7 +165,16 @@ export class DaemonCommand extends BaseCommand<DaemonInput, DaemonOutput> {
       return false; // 既にシャットダウン中
     }
     this.isShuttingDown = true;
-    this.cleanup();
+    
+    // 非同期クリーンアップを別途実行（テストでは同期的な結果が必要）
+    this.cleanup().catch(error => {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error("強制シャットダウン時のクリーンアップエラー", {
+        component: 'daemon',
+        error: errorMessage
+      });
+    });
+    
     return true; // シャットダウン実行成功
   }
 }

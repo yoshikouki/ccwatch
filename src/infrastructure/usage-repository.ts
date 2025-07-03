@@ -1,16 +1,41 @@
 import type { UsageDataRepository, CCUsageData, Logger } from "../core/interfaces.ts";
+import { BinarySemaphore, type Semaphore } from "./semaphore.ts";
 
 export class CCUsageRepository implements UsageDataRepository {
   private readonly MAX_DATA_SIZE = 10 * 1024 * 1024; // 10MB制限
+  private readonly EXECUTION_TIMEOUT = 30000; // 30秒タイムアウト
+  private readonly executionSemaphore: Semaphore;
 
-  constructor(private logger: Logger) {}
+  constructor(
+    private logger: Logger,
+    semaphore?: Semaphore
+  ) {
+    this.executionSemaphore = semaphore || new BinarySemaphore('ccusage-execution');
+  }
 
   async fetchUsageData(): Promise<CCUsageData> {
-    this.logger.debug("使用量データ取得開始", { component: 'usage-repository' });
+    this.logger.debug("使用量データ取得開始", { 
+      component: 'usage-repository',
+      semaphoreAvailable: this.executionSemaphore.getAvailablePermits()
+    });
+
+    // セマフォによる並列実行制限
+    const acquired = await this.executionSemaphore.acquire(this.EXECUTION_TIMEOUT);
+    if (!acquired) {
+      const error = "ccusage実行タイムアウト: 他のプロセスが実行中または応答なし";
+      this.logger.error(error, {
+        component: 'usage-repository',
+        timeout: this.EXECUTION_TIMEOUT
+      });
+      throw new Error(error);
+    }
 
     try {
-      const { $ } = await import("bun");
-      const result = await $`ccusage --format json`.text();
+      this.logger.debug("ccusage実行権取得完了", { 
+        component: 'usage-repository'
+      });
+
+      const result = await this.executeCommand();
       
       // データサイズチェックでメモリ使用量制限
       if (result.length > this.MAX_DATA_SIZE) {
@@ -33,7 +58,18 @@ export class CCUsageRepository implements UsageDataRepository {
         error: errorMessage
       });
       throw new Error(`CCUsage data fetch failed: ${errorMessage}`);
+    } finally {
+      // 必ずセマフォを解放
+      this.executionSemaphore.release();
+      this.logger.debug("ccusage実行権解放完了", { 
+        component: 'usage-repository'
+      });
     }
+  }
+
+  protected async executeCommand(): Promise<string> {
+    const { $ } = await import("bun");
+    return await $`ccusage --format json`.text();
   }
 }
 

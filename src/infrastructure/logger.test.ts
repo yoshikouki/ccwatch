@@ -402,4 +402,38 @@ describe("MockLogger", () => {
       expect(logger2.logs[0]?.message).toBe("Logger2のメッセージ");
     });
   });
+
+  describe("メモリ使用量制限", () => {
+    test("ログ数の上限制限", () => {
+      const mockLogger = new MockLogger();
+      
+      // 1200個のログを生成（制限の1000個を超える）
+      for (let i = 0; i < 1200; i++) {
+        mockLogger.info(`テストメッセージ ${i}`);
+      }
+      
+      // ログ数が1000個に制限されていることを確認
+      expect(mockLogger.logs).toHaveLength(1000);
+      
+      // 最新の1000個が保持されていることを確認（200〜1199）
+      expect(mockLogger.logs[0]?.message).toBe("テストメッセージ 200");
+      expect(mockLogger.logs[999]?.message).toBe("テストメッセージ 1199");
+    });
+
+    test("メモリ制限下でのclear機能", () => {
+      const mockLogger = new MockLogger();
+      
+      // 1500個のログを生成
+      for (let i = 0; i < 1500; i++) {
+        mockLogger.info(`大量ログ ${i}`);
+      }
+      
+      // 制限されて1000個になっていることを確認
+      expect(mockLogger.logs).toHaveLength(1000);
+      
+      // clearで完全に削除されることを確認
+      mockLogger.clear();
+      expect(mockLogger.logs).toHaveLength(0);
+    });
+  });
 });

@@ -80,19 +80,36 @@ export class DaemonCommand extends BaseCommand<DaemonInput, DaemonOutput> {
           const result = await checkUsageCommand.execute({ config, state: currentState });
           
           if (ResultUtils.isSuccess(result)) {
+            // 古い状態参照をクリアしてメモリ使用量を最小化
             currentState = result.data.newState;
             await this.dependencies.stateRepository.save(currentState);
             this.checkCount++;
+
+            // 定期的なメモリ最適化（100回に1回ガベージコレクションを促す）
+            if (this.checkCount % 100 === 0) {
+              this.logger.debug("定期メモリ最適化実行", {
+                checkCount: this.checkCount,
+                component: 'daemon'
+              });
+              
+              // Node.js/Bunでガベージコレクションが利用可能な場合実行
+              if (typeof global !== 'undefined' && 'gc' in global && typeof global.gc === 'function') {
+                global.gc();
+              }
+            }
           } else {
             this.logger.error("定期チェックでエラーが発生しました", {
               error: result.error.message,
-              component: 'daemon'
+              component: 'daemon',
+              checkCount: this.checkCount
             });
           }
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
           this.logger.error("予期しないエラーが発生しました", {
-            error: error instanceof Error ? error.message : String(error),
-            component: 'daemon'
+            error: errorMessage,
+            component: 'daemon',
+            checkCount: this.checkCount
           });
         }
       }, config.interval * 1000);

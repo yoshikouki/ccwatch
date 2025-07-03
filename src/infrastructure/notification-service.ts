@@ -1,4 +1,4 @@
-import { NotificationService, Logger } from "../core/interfaces.ts";
+import type { NotificationService, Logger } from "../core/interfaces.ts";
 
 export class SlackNotificationService implements NotificationService {
   constructor(private logger: Logger) {}

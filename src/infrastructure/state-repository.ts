@@ -1,6 +1,6 @@
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
-import { StateRepository, DaemonState, Logger } from "../core/interfaces.ts";
+import type { StateRepository, DaemonState, Logger } from "../core/interfaces.ts";
 
 export class FileStateRepository implements StateRepository {
   constructor(

@@ -1,4 +1,4 @@
-import { Result } from "../core/interfaces.ts";
+import type { Result } from "../core/interfaces.ts";
 
 export abstract class BaseCommand<TInput, TOutput> {
   abstract execute(input: TInput): Promise<Result<TOutput>>;

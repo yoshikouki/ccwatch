@@ -1,4 +1,4 @@
-import { Config, ValidationError, Result } from "../core/interfaces.ts";
+import type { Config, ValidationError, Result } from "../core/interfaces.ts";
 import { ResultUtils } from "../utils/result.ts";
 
 export class ArgumentParser {

@@ -1,5 +1,5 @@
 import { BaseCommand } from "./base-command.ts";
-import { 
+import type { 
   Config, 
   Result, 
   DaemonState, 

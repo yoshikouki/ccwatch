@@ -1,4 +1,4 @@
-import { Result } from "../core/interfaces.ts";
+import type { Result } from "../core/interfaces.ts";
 
 export class ResultUtils {
   static success<T>(data: T): Result<T> {

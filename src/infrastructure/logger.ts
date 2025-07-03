@@ -1,4 +1,4 @@
-import { Logger } from "../core/interfaces.ts";
+import type { Logger } from "../core/interfaces.ts";
 
 export class ConsoleLogger implements Logger {
   constructor(private enableStructuredLogging: boolean = false) {}

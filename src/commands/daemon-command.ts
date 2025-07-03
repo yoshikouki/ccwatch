@@ -1,6 +1,7 @@
 import { BaseCommand } from "./base-command.ts";
-import { CheckUsageCommand, CheckUsageDependencies } from "./check-usage-command.ts";
-import { Config, Result, DaemonState, Logger } from "../core/interfaces.ts";
+import { CheckUsageCommand } from "./check-usage-command.ts";
+import type { CheckUsageDependencies } from "./check-usage-command.ts";
+import type { Config, Result, DaemonState, Logger } from "../core/interfaces.ts";
 import { ResultUtils } from "../utils/result.ts";
 
 export interface DaemonInput {

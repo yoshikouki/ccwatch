@@ -1,4 +1,4 @@
-import { Clock } from "../core/interfaces.ts";
+import type { Clock } from "../core/interfaces.ts";
 
 export class SystemClock implements Clock {
   now(): Date {

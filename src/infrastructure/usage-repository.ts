@@ -1,4 +1,4 @@
-import { UsageDataRepository, CCUsageData, Logger } from "../core/interfaces.ts";
+import type { UsageDataRepository, CCUsageData, Logger } from "../core/interfaces.ts";
 
 export class CCUsageRepository implements UsageDataRepository {
   constructor(private logger: Logger) {}

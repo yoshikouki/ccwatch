@@ -2,38 +2,22 @@ import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { CCUsageRepository, MockUsageRepository } from "./usage-repository.ts";
 import { MockLogger } from "./logger.ts";
 import { MockSemaphore } from "./semaphore.ts";
-
-// カスタムCCUsageRepositoryテスト用クラス
-class TestableUsageRepository extends CCUsageRepository {
-  constructor(
-    logger: MockLogger,
-    semaphore: MockSemaphore,
-    private mockCommand?: () => Promise<string>
-  ) {
-    super(logger, semaphore);
-  }
-
-  // テスト用にコマンド実行部分をオーバーライド
-  protected override async executeCommand(): Promise<string> {
-    if (this.mockCommand) {
-      return this.mockCommand();
-    }
-    return super.executeCommand();
-  }
-}
+import { MockCommandExecutor } from "./command-executor.ts";
 
 describe("CCUsageRepository", () => {
-  let repository: TestableUsageRepository;
+  let repository: CCUsageRepository;
   let mockLogger: MockLogger;
   let mockSemaphore: MockSemaphore;
+  let mockCommandExecutor: MockCommandExecutor;
 
   beforeEach(() => {
     mockLogger = new MockLogger();
     mockSemaphore = new MockSemaphore();
+    mockCommandExecutor = new MockCommandExecutor();
   });
 
   test("基本的なインスタンス作成", () => {
-    repository = new TestableUsageRepository(mockLogger, mockSemaphore);
+    repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
     expect(repository).toBeInstanceOf(CCUsageRepository);
     expect(repository.fetchUsageData).toBeDefined();
     expect(typeof repository.fetchUsageData).toBe("function");
@@ -42,12 +26,12 @@ describe("CCUsageRepository", () => {
   describe("並列実行制限", () => {
     test("セマフォ取得成功時の正常動作", async () => {
       // ccusageコマンドの正常実行をモック
-      const mockCommand = vi.fn().mockResolvedValue(JSON.stringify({
+      mockCommandExecutor.setMockResponse("ccusage --format json", JSON.stringify({
         monthly: [{ month: "2025-07", totalCost: 50, modelsUsed: [], modelBreakdowns: [] }],
         totals: { totalCost: 50 }
       }));
       
-      repository = new TestableUsageRepository(mockLogger, mockSemaphore, mockCommand);
+      repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
 
       const result = await repository.fetchUsageData();
 
@@ -56,10 +40,11 @@ describe("CCUsageRepository", () => {
       expect(mockSemaphore.getReleaseCount()).toBe(1);
       expect(mockLogger.hasLog("debug", "ccusage実行権取得完了")).toBe(true);
       expect(mockLogger.hasLog("debug", "ccusage実行権解放完了")).toBe(true);
+      expect(mockCommandExecutor.getExecutedCommands()).toEqual(["ccusage --format json"]);
     });
 
     test("セマフォ取得失敗時のタイムアウトエラー", async () => {
-      repository = new TestableUsageRepository(mockLogger, mockSemaphore);
+      repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
       
       // セマフォを既に取得状態に設定
       await mockSemaphore.acquire();
@@ -73,8 +58,8 @@ describe("CCUsageRepository", () => {
     });
 
     test("ccusage実行エラー時のセマフォ確実解放", async () => {
-      const mockCommand = vi.fn().mockRejectedValue(new Error("ccusage execution failed"));
-      repository = new TestableUsageRepository(mockLogger, mockSemaphore, mockCommand);
+      // コマンド実行エラーをセットアップ（モックレスポンス未設定でエラーが発生）
+      repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
 
       await expect(repository.fetchUsageData()).rejects.toThrow("CCUsage data fetch failed");
 
@@ -87,8 +72,8 @@ describe("CCUsageRepository", () => {
     test("データサイズ制限超過時のセマフォ確実解放", async () => {
       // 10MB超のデータをシミュレート
       const largeData = "x".repeat(11 * 1024 * 1024);
-      const mockCommand = vi.fn().mockResolvedValue(largeData);
-      repository = new TestableUsageRepository(mockLogger, mockSemaphore, mockCommand);
+      mockCommandExecutor.setMockResponse("ccusage --format json", largeData);
+      repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
 
       await expect(repository.fetchUsageData()).rejects.toThrow("Usage data too large");
 
@@ -99,8 +84,8 @@ describe("CCUsageRepository", () => {
 
   describe("メモリ使用量制限", () => {
     test("データサイズ制限チェック", async () => {
-      const mockCommand = vi.fn().mockResolvedValue("x".repeat(11 * 1024 * 1024)); // 11MB
-      repository = new TestableUsageRepository(mockLogger, mockSemaphore, mockCommand);
+      mockCommandExecutor.setMockResponse("ccusage --format json", "x".repeat(11 * 1024 * 1024)); // 11MB
+      repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
 
       await expect(repository.fetchUsageData()).rejects.toThrow(
         /Usage data too large: \d+ bytes \(max: 10485760\)/
@@ -115,8 +100,8 @@ describe("CCUsageRepository", () => {
         totals: { totalCost: 100 }
       };
       
-      const mockCommand = vi.fn().mockResolvedValue(JSON.stringify(normalData));
-      repository = new TestableUsageRepository(mockLogger, mockSemaphore, mockCommand);
+      mockCommandExecutor.setMockResponse("ccusage --format json", JSON.stringify(normalData));
+      repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
 
       const result = await repository.fetchUsageData();
 
@@ -127,11 +112,11 @@ describe("CCUsageRepository", () => {
 
   describe("ログ機能", () => {
     test("セマフォ状態のログ記録", async () => {
-      const mockCommand = vi.fn().mockResolvedValue(JSON.stringify({
+      mockCommandExecutor.setMockResponse("ccusage --format json", JSON.stringify({
         monthly: [],
         totals: { totalCost: 0 }
       }));
-      repository = new TestableUsageRepository(mockLogger, mockSemaphore, mockCommand);
+      repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
 
       await repository.fetchUsageData();
 
@@ -144,6 +129,37 @@ describe("CCUsageRepository", () => {
     });
   });
 
+  describe("コマンド実行の検証", () => {
+    test("正しいコマンドが実行される", async () => {
+      mockCommandExecutor.setMockResponse("ccusage --format json", JSON.stringify({
+        monthly: [],
+        totals: { totalCost: 0 }
+      }));
+      repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
+
+      await repository.fetchUsageData();
+
+      const executedCommands = mockCommandExecutor.getExecutedCommands();
+      expect(executedCommands).toHaveLength(1);
+      expect(executedCommands[0]).toBe("ccusage --format json");
+    });
+
+    test("コマンド実行オプションの確認", async () => {
+      // モックで実行されたオプションを確認するテストは、
+      // CommandExecutorの実装詳細に依存するため、
+      // 実際のコマンド実行結果で検証
+      mockCommandExecutor.setMockResponse("ccusage --format json", JSON.stringify({
+        monthly: [],
+        totals: { totalCost: 0 }
+      }));
+      repository = new CCUsageRepository(mockLogger, mockSemaphore, mockCommandExecutor);
+
+      await repository.fetchUsageData();
+
+      // コマンド実行が正常に完了することを確認
+      expect(mockLogger.hasLog("debug", "使用量データ取得完了")).toBe(true);
+    });
+  });
 });
 
 describe("MockUsageRepository", () => {

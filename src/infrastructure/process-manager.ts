@@ -24,48 +24,76 @@ export class FileProcessManager implements ProcessManager {
     const pidFile = join(this.pidDir, `ccwatch-${name}.pid`);
     
     try {
-      // 既存のPIDファイルをチェック
+      // ディレクトリが存在しない場合は作成
+      await fs.mkdir(this.pidDir, { recursive: true });
+      
+      // アトミックにPIDファイルを作成（排他的作成）
       try {
-        const existingPid = await fs.readFile(pidFile, 'utf8');
-        const pid = parseInt(existingPid.trim(), 10);
+        const currentPid = process.pid;
+        await fs.writeFile(pidFile, currentPid.toString(), { flag: 'wx' });
         
-        if (!isNaN(pid) && this.isProcessRunning(pid)) {
-          this.logger.warn("既存のプロセスが検出されました", {
-            component: 'process-manager',
-            lockName: name,
-            existingPid: pid
-          });
-          return false;
-        }
+        this.acquiredLocks.add(name);
         
-        // 古いPIDファイルを削除
-        await fs.unlink(pidFile);
-        this.logger.debug("古いPIDファイルを削除", {
+        this.logger.info("プロセスロック取得完了", {
           component: 'process-manager',
           lockName: name,
-          stalePid: pid
+          pid: currentPid,
+          pidFile
         });
-      } catch (error) {
-        // ファイルが存在しない場合は正常（初回実行）
-        if ((error as any).code !== 'ENOENT') {
-          throw error;
+        
+        return true;
+      } catch (error: any) {
+        // ファイルが既に存在する場合
+        if (error.code === 'EEXIST') {
+          // 既存PIDファイルの妥当性を確認
+          try {
+            const existingPid = await fs.readFile(pidFile, 'utf8');
+            const pid = parseInt(existingPid.trim(), 10);
+            
+            if (!isNaN(pid) && this.isProcessRunning(pid)) {
+              this.logger.warn("既存のプロセスが検出されました", {
+                component: 'process-manager',
+                lockName: name,
+                existingPid: pid
+              });
+              return false;
+            }
+            
+            // 古いPIDファイルを削除して再試行
+            await fs.unlink(pidFile);
+            this.logger.debug("古いPIDファイルを削除", {
+              component: 'process-manager',
+              lockName: name,
+              stalePid: pid
+            });
+            
+            // 再試行（1回のみ）
+            const currentPid = process.pid;
+            await fs.writeFile(pidFile, currentPid.toString(), { flag: 'wx' });
+            
+            this.acquiredLocks.add(name);
+            
+            this.logger.info("プロセスロック取得完了（再試行）", {
+              component: 'process-manager',
+              lockName: name,
+              pid: currentPid,
+              pidFile
+            });
+            
+            return true;
+          } catch (retryError: any) {
+            if (retryError.code === 'EEXIST') {
+              this.logger.warn("再試行でも既存のプロセスが検出されました", {
+                component: 'process-manager',
+                lockName: name
+              });
+              return false;
+            }
+            throw retryError;
+          }
         }
+        throw error;
       }
-
-      // 新しいPIDファイルを作成
-      const currentPid = process.pid;
-      await fs.writeFile(pidFile, currentPid.toString(), { flag: 'wx' });
-      
-      this.acquiredLocks.add(name);
-      
-      this.logger.info("プロセスロック取得完了", {
-        component: 'process-manager',
-        lockName: name,
-        pid: currentPid,
-        pidFile
-      });
-      
-      return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error("プロセスロック取得失敗", {

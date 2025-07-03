@@ -1,16 +1,20 @@
 import type { UsageDataRepository, CCUsageData, Logger } from "../core/interfaces.ts";
 import { BinarySemaphore, type Semaphore } from "./semaphore.ts";
+import { NodeCommandExecutor, type CommandExecutor } from "./command-executor.ts";
 
 export class CCUsageRepository implements UsageDataRepository {
   private readonly MAX_DATA_SIZE = 10 * 1024 * 1024; // 10MB制限
   private readonly EXECUTION_TIMEOUT = 30000; // 30秒タイムアウト
   private readonly executionSemaphore: Semaphore;
+  private readonly commandExecutor: CommandExecutor;
 
   constructor(
     private logger: Logger,
-    semaphore?: Semaphore
+    semaphore?: Semaphore,
+    commandExecutor?: CommandExecutor
   ) {
     this.executionSemaphore = semaphore || new BinarySemaphore('ccusage-execution');
+    this.commandExecutor = commandExecutor || new NodeCommandExecutor();
   }
 
   async fetchUsageData(): Promise<CCUsageData> {
@@ -35,7 +39,9 @@ export class CCUsageRepository implements UsageDataRepository {
         component: 'usage-repository'
       });
 
-      const result = await this.executeCommand();
+      const result = await this.commandExecutor.execute("ccusage --format json", {
+        maxBuffer: this.MAX_DATA_SIZE
+      });
       
       // データサイズチェックでメモリ使用量制限
       if (result.length > this.MAX_DATA_SIZE) {
@@ -67,22 +73,6 @@ export class CCUsageRepository implements UsageDataRepository {
     }
   }
 
-  protected async executeCommand(): Promise<string> {
-    // Node.js互換性のためchild_processを使用
-    const { execSync } = await import("child_process");
-    try {
-      const result = execSync("ccusage --format json", {
-        encoding: "utf8",
-        maxBuffer: this.MAX_DATA_SIZE
-      });
-      return result;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error(String(error));
-    }
-  }
 }
 
 // テスト用のモック実装

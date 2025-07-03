@@ -1,4 +1,4 @@
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, beforeEach } from "vitest";
 import { BaseCommand } from "./base-command.ts";
 import type { Result } from "../core/interfaces.ts";
 import { ResultUtils } from "../utils/result.ts";

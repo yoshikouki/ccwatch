@@ -22,21 +22,35 @@ describe("CCUsageRepository", () => {
       totals: { totalCost: 45.50 }
     };
 
-    // Bunのdynamic importとプロセス実行をモック
-    const mockBun = {
+    // 実際のbunインポートをモック
+    const originalImport = global.__import || eval('import');
+    global.__import = vi.fn().mockResolvedValue({
       $: vi.fn().mockReturnValue({
         text: vi.fn().mockResolvedValue(JSON.stringify(mockData))
       })
-    };
+    });
 
-    // Dynamic importをモック
-    vi.doMock("bun", () => mockBun);
+    // dynamic importをモック
+    vi.doMock("bun", () => ({
+      $: vi.fn().mockReturnValue({
+        text: vi.fn().mockResolvedValue(JSON.stringify(mockData))
+      })
+    }));
 
     const result = await repository.fetchUsageData();
 
     expect(result).toEqual(mockData);
     expect(mockLogger.hasLog("debug", "使用量データ取得開始")).toBe(true);
     expect(mockLogger.hasLog("debug", "使用量データ取得完了")).toBe(true);
+    
+    // monthCountコンテキストがログに含まれているか確認
+    const completionLogs = mockLogger.logs.filter(log => 
+      log.message.includes("使用量データ取得完了") && 
+      log.context?.monthCount === 1
+    );
+    expect(completionLogs.length).toBeGreaterThan(0);
+
+    global.__import = originalImport;
   });
 
   test("ccusageコマンドが存在しない場合", async () => {

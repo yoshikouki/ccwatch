@@ -472,5 +472,33 @@ describe("ArgumentParser", () => {
       
       global.parseFloat = originalParseFloat;
     });
+
+    test("validateThresholdでのNaN検出", () => {
+      process.argv = ["bun", "script.ts", "NaN"];
+      
+      const result = parser.parse();
+      
+      expect(ResultUtils.isFailure(result)).toBe(true);
+      if (ResultUtils.isFailure(result)) {
+        expect(result.error.message).toContain("Threshold must be a valid number");
+      }
+    });
+
+    test("validateThresholdでの非有限値検出", () => {
+      // グローバルのparseFloatを一時的にオーバーライド
+      const originalParseFloat = global.parseFloat;
+      global.parseFloat = vi.fn().mockReturnValue(Infinity);
+      
+      process.argv = ["bun", "script.ts", "Infinity"];
+      
+      const result = parser.parse();
+      
+      expect(ResultUtils.isFailure(result)).toBe(true);
+      if (ResultUtils.isFailure(result)) {
+        expect(result.error.message).toContain("Threshold must be finite");
+      }
+      
+      global.parseFloat = originalParseFloat;
+    });
   });
 });

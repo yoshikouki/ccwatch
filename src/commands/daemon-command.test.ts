@@ -226,4 +226,130 @@ describe("DaemonCommand", () => {
     expect(mockDependencies.clock.getCurrentMonth()).toBe("2025-07");
     expect(mockDependencies.clock.getToday()).toBe("2025-07-15");
   });
+
+  test("定期実行での状態保存", async () => {
+    const config = {
+      threshold: 30, // 閾値を超過させる
+      daemon: true,
+      interval: 100, // 短いインターバル
+      slackWebhookUrl: undefined
+    };
+
+    // checkUsageCommandの結果をモック
+    const mockExecuteResult = {
+      success: true,
+      data: {
+        currentCost: 50,
+        newState: { lastNotificationDate: "2025-07-15" },
+        checkCount: 1
+      }
+    };
+    
+    command.checkUsageCommand = {
+      execute: vi.fn().mockResolvedValue(mockExecuteResult)
+    } as any;
+
+    const executePromise = command.execute({ config });
+    
+    // 短時間待機してチェックが実行されるようにする
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
+    command.forceShutdown();
+    const result = await executePromise;
+
+    expect(ResultUtils.isSuccess(result)).toBe(true);
+    if (ResultUtils.isSuccess(result)) {
+      expect(result.data.checkCount).toBeGreaterThan(0);
+    }
+  });
+
+  test("チェック実行エラー時のハンドリング", async () => {
+    const config = {
+      threshold: 50,
+      daemon: true,
+      interval: 100,
+      slackWebhookUrl: undefined
+    };
+
+    // checkUsageCommandでエラーを返すモック
+    const mockErrorResult = {
+      success: false,
+      error: { message: "使用量取得エラー" }
+    };
+    
+    command.checkUsageCommand = {
+      execute: vi.fn().mockResolvedValue(mockErrorResult)
+    } as any;
+
+    const executePromise = command.execute({ config });
+    
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
+    command.forceShutdown();
+    const result = await executePromise;
+
+    expect(ResultUtils.isSuccess(result)).toBe(true);
+    expect(mockLogger.hasLog("error", "定期チェックでエラーが発生しました")).toBe(true);
+  });
+
+  test("予期しない例外のキャッチとログ記録", async () => {
+    const config = {
+      threshold: 50,
+      daemon: true,
+      interval: 100,
+      slackWebhookUrl: undefined
+    };
+
+    // checkUsageCommandで例外を投げるモック
+    command.checkUsageCommand = {
+      execute: vi.fn().mockRejectedValue(new Error("予期しないエラー"))
+    } as any;
+
+    const executePromise = command.execute({ config });
+    
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
+    command.forceShutdown();
+    const result = await executePromise;
+
+    expect(ResultUtils.isSuccess(result)).toBe(true);
+    expect(mockLogger.hasLog("error", "予期しないエラーが発生しました")).toBe(true);
+  });
+
+  test("シャットダウン中のインターバル処理スキップ", async () => {
+    const config = {
+      threshold: 50,
+      daemon: true,
+      interval: 50, // 非常に短いインターバル
+      slackWebhookUrl: undefined
+    };
+
+    const executePromise = command.execute({ config });
+    
+    // 即座にシャットダウン
+    command.forceShutdown();
+    
+    const result = await executePromise;
+
+    expect(ResultUtils.isSuccess(result)).toBe(true);
+    // シャットダウン中にisShuttingDownチェックが働くことを確認
+  });
+
+  test("グレースフルシャットダウンのセットアップ", async () => {
+    const config = {
+      threshold: 50,
+      daemon: true,
+      interval: 1000,
+      slackWebhookUrl: undefined
+    };
+
+    const executePromise = command.execute({ config });
+    
+    // setupGracefulShutdownが呼ばれてprocess.onが設定されることを確認
+    expect(process.on).toHaveBeenCalledWith("SIGINT", expect.any(Function));
+    expect(process.on).toHaveBeenCalledWith("SIGTERM", expect.any(Function));
+    
+    command.forceShutdown();
+    await executePromise;
+  });
 });

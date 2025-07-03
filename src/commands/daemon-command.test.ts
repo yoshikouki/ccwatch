@@ -214,7 +214,7 @@ describe("DaemonCommand", () => {
 
   test("通知サービスの動作確認", async () => {
     const message = "テスト通知";
-    await mockDependencies.notificationService.sendNotification(message, 50);
+    await mockDependencies.notificationService.notify(message, 50);
     
     expect(mockDependencies.notificationService.sentNotifications).toHaveLength(1);
     expect(mockDependencies.notificationService.sentNotifications[0]?.message).toBe(message);
@@ -245,9 +245,9 @@ describe("DaemonCommand", () => {
       }
     };
     
-    command.checkUsageCommand = {
+    (command as any).checkUsageCommand = {
       execute: vi.fn().mockResolvedValue(mockExecuteResult)
-    } as any;
+    };
 
     const executePromise = command.execute({ config });
     
@@ -277,9 +277,9 @@ describe("DaemonCommand", () => {
       error: { message: "使用量取得エラー" }
     };
     
-    command.checkUsageCommand = {
+    (command as any).checkUsageCommand = {
       execute: vi.fn().mockResolvedValue(mockErrorResult)
-    } as any;
+    };
 
     const executePromise = command.execute({ config });
     
@@ -301,9 +301,9 @@ describe("DaemonCommand", () => {
     };
 
     // checkUsageCommandで例外を投げるモック
-    command.checkUsageCommand = {
+    (command as any).checkUsageCommand = {
       execute: vi.fn().mockRejectedValue(new Error("予期しないエラー"))
-    } as any;
+    };
 
     const executePromise = command.execute({ config });
     

@@ -23,8 +23,8 @@ describe("CCUsageRepository", () => {
     };
 
     // 実際のbunインポートをモック
-    const originalImport = global.__import || eval('import');
-    global.__import = vi.fn().mockResolvedValue({
+    const originalImport = (global as any).__import || eval('import');
+    (global as any).__import = vi.fn().mockResolvedValue({
       $: vi.fn().mockReturnValue({
         text: vi.fn().mockResolvedValue(JSON.stringify(mockData))
       })
@@ -50,7 +50,7 @@ describe("CCUsageRepository", () => {
     );
     expect(completionLogs.length).toBeGreaterThan(0);
 
-    global.__import = originalImport;
+    (global as any).__import = originalImport;
   });
 
   test("ccusageコマンドが存在しない場合", async () => {

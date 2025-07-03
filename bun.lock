@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "ccmonitor",
+      "name": "ccwatch",
       "dependencies": {
         "ccusage": "^15.2.0",
       },

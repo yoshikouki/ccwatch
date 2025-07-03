@@ -11,11 +11,28 @@ export class ArgumentParser {
         return ResultUtils.failure(new Error("HELP_REQUESTED"));
       }
 
-      if (args.length === 0) {
-        return ResultUtils.failure(new Error("Threshold argument is required"));
+      // 闾値を見つける（フラグでない最初の引数）
+      let threshold: number | undefined;
+      let thresholdArg: string | undefined;
+      for (const arg of args) {
+        if (!arg.startsWith('-')) {
+          thresholdArg = arg;
+          const parsed = parseFloat(arg);
+          if (!isNaN(parsed)) {
+            threshold = parsed;
+          }
+          break;
+        }
       }
 
-      const threshold = parseFloat(args[0]!);
+      if (thresholdArg === undefined) {
+        return ResultUtils.failure(new Error("Threshold argument is required"));
+      }
+      
+      if (threshold === undefined) {
+        return ResultUtils.failure(new Error("Threshold must be a valid number"));
+      }
+
       const daemon = args.includes('--daemon');
       let interval = 3600; // デフォルト1時間
 

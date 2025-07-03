@@ -78,13 +78,13 @@ describe("DependencyContainer", () => {
     });
 
     test("カスタムClockの設定", () => {
-      const customClock = new MockClock(123456789);
+      const customClock = new MockClock(new Date(123456789));
       
       container.setClock(customClock);
       const retrievedClock = container.getClock();
       
       expect(retrievedClock).toBe(customClock);
-      expect(retrievedClock.now()).toBe(123456789);
+      expect(retrievedClock.now().getTime()).toBe(123456789);
     });
 
     test("リセット後のClock再生成", () => {
@@ -100,6 +100,8 @@ describe("DependencyContainer", () => {
   describe("Logger依存性", () => {
     test("構造化ログ有効時", () => {
       process.env.CCWATCH_STRUCTURED_LOGS = "true";
+      process.env.NODE_ENV = "production";
+      container.reset(); // 環境変数変更後にリセット
       
       const logger1 = container.getLogger();
       const logger2 = container.getLogger();
@@ -110,6 +112,8 @@ describe("DependencyContainer", () => {
 
     test("構造化ログ無効時", () => {
       process.env.CCWATCH_STRUCTURED_LOGS = "false";
+      process.env.NODE_ENV = "production";
+      container.reset(); // 環境変数変更後にリセット
       
       const logger = container.getLogger();
       expect(logger.constructor.name).toBe("ConsoleLogger");
@@ -117,6 +121,8 @@ describe("DependencyContainer", () => {
 
     test("環境変数未設定時", () => {
       delete process.env.CCWATCH_STRUCTURED_LOGS;
+      process.env.NODE_ENV = "production";
+      container.reset(); // 環境変数変更後にリセット
       
       const logger = container.getLogger();
       expect(logger.constructor.name).toBe("ConsoleLogger");
@@ -264,7 +270,7 @@ describe("DependencyContainer", () => {
     });
 
     test("カスタム依存性の組み合わせ", () => {
-      const customClock = new MockClock(999999);
+      const customClock = new MockClock(new Date(999999));
       const customLogger = new MockLogger();
       const customStateRepo = new MemoryStateRepository();
       const customUsageRepo = new MockUsageRepository({
@@ -313,7 +319,7 @@ describe("DependencyContainer", () => {
     });
 
     test("カスタム依存性もリセットされる", () => {
-      const customClock = new MockClock(123456);
+      const customClock = new MockClock(new Date(123456));
       
       container.setClock(customClock);
       expect(container.getClock()).toBe(customClock);

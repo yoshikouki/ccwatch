@@ -22,7 +22,7 @@ describe("SlackNotificationService", () => {
       ok: true,
       status: 200
     };
-    global.fetch = vi.fn().mockResolvedValue(mockResponse);
+    global.fetch = vi.fn().mockResolvedValue(mockResponse) as any;
 
     const message = "テストメッセージ";
     const webhookUrl = "https://hooks.slack.com/services/test/webhook";
@@ -63,7 +63,7 @@ describe("SlackNotificationService", () => {
       ok: false,
       status: 400
     };
-    global.fetch = vi.fn().mockResolvedValue(mockResponse);
+    global.fetch = vi.fn().mockResolvedValue(mockResponse) as any;
 
     const message = "テストメッセージ";
     const webhookUrl = "https://hooks.slack.com/services/test/webhook";
@@ -74,7 +74,7 @@ describe("SlackNotificationService", () => {
   });
 
   test("ネットワークエラー", async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+    global.fetch = vi.fn().mockRejectedValue(new Error("Network error")) as any;
 
     const message = "テストメッセージ";
     const webhookUrl = "https://hooks.slack.com/services/test/webhook";
@@ -85,7 +85,7 @@ describe("SlackNotificationService", () => {
   });
 
   test("非Error例外のハンドリング", async () => {
-    global.fetch = vi.fn().mockRejectedValue("String error");
+    global.fetch = vi.fn().mockRejectedValue("String error") as any;
 
     const message = "テストメッセージ";
     const webhookUrl = "https://hooks.slack.com/services/test/webhook";
@@ -105,7 +105,7 @@ describe("SlackNotificationService", () => {
         ok: false,
         status: testCase.status
       };
-      global.fetch = vi.fn().mockResolvedValue(mockResponse);
+      global.fetch = vi.fn().mockResolvedValue(mockResponse) as any;
 
       const message = "テストメッセージ";
       const webhookUrl = "https://hooks.slack.com/services/test/webhook";
@@ -119,7 +119,7 @@ describe("SlackNotificationService", () => {
       ok: true,
       status: 200
     };
-    global.fetch = vi.fn().mockResolvedValue(mockResponse);
+    global.fetch = vi.fn().mockResolvedValue(mockResponse) as any;
 
     const longMessage = "a".repeat(10000);
     const webhookUrl = "https://hooks.slack.com/services/test/webhook";
@@ -137,7 +137,7 @@ describe("SlackNotificationService", () => {
       ok: true,
       status: 200
     };
-    global.fetch = vi.fn().mockResolvedValue(mockResponse);
+    global.fetch = vi.fn().mockResolvedValue(mockResponse) as any;
 
     const specialMessage = "テスト🚨メッセージ\n改行含む\"引用符";
     const webhookUrl = "https://hooks.slack.com/services/test/webhook";

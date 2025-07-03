@@ -206,7 +206,7 @@ describe("ResultUtils", () => {
 
     test("チェーンの実装", () => {
       const result = ResultUtils.success("10");
-      const parsed = ResultUtils.flatMap(result, (str) => {
+      const parsed: Result<number, Error> = ResultUtils.flatMap(result, (str) => {
         const num = parseInt(str);
         return isNaN(num) ? ResultUtils.failure(new Error("Not a number")) : ResultUtils.success(num);
       });

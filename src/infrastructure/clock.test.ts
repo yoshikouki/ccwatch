@@ -109,9 +109,9 @@ describe("MockClock", () => {
     const now2 = clock.now();
     const now3 = clock.now();
 
-    expect(now1).toEqual(fixedTime);
-    expect(now2).toEqual(fixedTime);
-    expect(now3).toEqual(fixedTime);
+    expect(now1.getTime()).toBe(fixedTime.getTime());
+    expect(now2.getTime()).toBe(fixedTime.getTime());
+    expect(now3.getTime()).toBe(fixedTime.getTime());
     
     // 同じ時刻を返すが、異なるインスタンス
     expect(now1).not.toBe(now2);

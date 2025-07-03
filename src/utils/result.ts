@@ -1,7 +1,7 @@
 import type { Result } from "../core/interfaces.ts";
 
 export class ResultUtils {
-  static success<T>(data: T): Result<T> {
+  static success<T>(data: T): Result<T, never> {
     return { success: true, data };
   }
 
@@ -22,8 +22,8 @@ export class ResultUtils {
     fn: (data: T) => U
   ): Result<U, E> {
     return ResultUtils.isSuccess(result)
-      ? ResultUtils.success(fn(result.data))
-      : result;
+      ? { success: true, data: fn(result.data) }
+      : { success: false, error: result.error };
   }
 
   static flatMap<T, U, E>(
@@ -32,22 +32,22 @@ export class ResultUtils {
   ): Result<U, E> {
     return ResultUtils.isSuccess(result)
       ? fn(result.data)
-      : result;
+      : { success: false, error: result.error };
   }
 
   static async mapAsync<T, U, E>(
     result: Result<T, E>,
     fn: (data: T) => Promise<U>
-  ): Promise<Result<U, E>> {
+  ): Promise<Result<U, E | Error>> {
     if (ResultUtils.isSuccess(result)) {
       try {
         const data = await fn(result.data);
-        return ResultUtils.success(data);
+        return { success: true, data };
       } catch (error) {
-        return ResultUtils.failure(error as E);
+        return { success: false, error: error as Error };
       }
     }
-    return result;
+    return { success: false, error: result.error };
   }
 
   static getOrThrow<T, E>(result: Result<T, E>): T {

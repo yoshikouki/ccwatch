@@ -49,7 +49,7 @@ export class DependencyContainer {
 
   getClock(): Clock {
     if (!this._clock) {
-      this._clock = this.isTestMode() ? new MockClock() : new SystemClock();
+      this._clock = this.isTestMode() ? new MockClock(new Date()) : new SystemClock();
     }
     return this._clock;
   }

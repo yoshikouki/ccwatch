@@ -110,7 +110,7 @@ test("E2E - ヘルプ表示", async () => {
 test("E2E - バリデーションエラー（負の閾値）", async () => {
   try {
     execSync("bun run dist/index.js -10", { encoding: "utf8" });
-    expect().fail("Should have thrown an error");
+    throw new Error("Should have thrown an error");
   } catch (error: any) {
     expect(error.status).toBe(1);
     expect(error.stderr.toString()).toContain("positive number");
@@ -120,7 +120,7 @@ test("E2E - バリデーションエラー（負の閾値）", async () => {
 test("E2E - バリデーションエラー（大きすぎる閾値）", async () => {
   try {
     execSync("bun run dist/index.js 2000000", { encoding: "utf8" });
-    expect().fail("Should have thrown an error");
+    throw new Error("Should have thrown an error");
   } catch (error: any) {
     expect(error.status).toBe(1);
     expect(error.stderr.toString()).toContain("less than $1,000,000");
@@ -170,7 +170,7 @@ test("E2E - 不正なSlack URL", async () => {
       encoding: "utf8",
       env: { ...process.env, CCWATCH_SLACK_WEBHOOK_URL: "invalid-url" }
     });
-    expect().fail("Should have thrown an error");
+    throw new Error("Should have thrown an error");
   } catch (error: any) {
     expect(error.status).toBe(1);
     expect(error.stderr.toString()).toContain("Slack webhook URL");
@@ -241,6 +241,6 @@ test("E2E - 型チェック実行", async () => {
     expect(result).toContain("ccwatch@1.0.0 typecheck");
   } catch (error: any) {
     // 型エラーがある場合はテスト失敗
-    expect().fail(`Type check failed: ${error.stdout}`);
+    throw new Error(`Type check failed: ${error.stdout}`);
   }
 });
